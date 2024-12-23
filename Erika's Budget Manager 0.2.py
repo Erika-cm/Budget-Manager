@@ -10,6 +10,7 @@ class MainWindow(ctk.CTk):
     def __init__(self, title, windowsize):
         super().__init__()
         self.title(title)
+        #self.window_size = windowsize use this to set widget sizes relative to window size if needed
         self.geometry(f'{windowsize[0]}x{windowsize[1]}')
 
         #widgets
@@ -18,22 +19,26 @@ class MainWindow(ctk.CTk):
         create_new_button_panel.grid_columnconfigure((0,1,2), weight=1)
         create_new_button_panel.grid_rowconfigure(0, weight=1)
         #buttons
-        button_continue = ctk.CTkButton(create_new_button_panel, text="Continue", fg_color="#00aaff", font=('calibri', 35), command=self.continue_button)
-        button_back = ctk.CTkButton(create_new_button_panel, text="Back", fg_color="#00aaff", font=('calibri', 35), command=self.back_button)
+        button_continue = ctk.CTkButton(create_new_button_panel, text="Continue", fg_color="#00aaff", font=('calibri', 35), command=self.createnew_or_managebudget_pressed_continue)
+        button_back = ctk.CTkButton(create_new_button_panel, text="Back", fg_color="#00aaff", font=('calibri', 35), command=self.createnew_or_managebudget_pressed_back)
         # button panel layout
         button_continue.grid(row=0, column=2, sticky="ne", pady=10, padx=80) #this should not appear until a selection is made
         button_back.grid(row=0, column=0, sticky="nw", pady=10, padx=80)
 
+        #pages: manage budget
+        self.manage_budget_p1 = RadioButtonMenu(self, "Open Existing Budget")
+         
         #pages: create a new budget
-        self.create_new_p1 = ChooseBudgetTemplate(self)
+        self.create_new_p1 = RadioButtonMenu(self, "Choose a Budget Template")
         self.create_new_p2 = EditBudgetTemplate(self) 
 
         #main menu
-        self.main_menu = MainMenu(self, self.create_new_p1, create_new_button_panel) #need to pass any pages that are accessed by the button on main menu directly (so just the 1st)
+        self.main_menu = MainMenu(self, self.create_new_p1, create_new_button_panel, self.manage_budget_p1) #need to pass any pages that are accessed by the button on main menu directly (so just the 1st)
         self.main_menu.configure(fg_color="transparent")     
 
-        #final create new budget page (has to come after main menu so that mainmenu is raisable from that page)
+        #final create new budget page (has to come after main menu so that mainmenu is raisable from that page)(same for final manage budget page)
         self.create_new_p3 = EnterBudgetAmounts(self, self.main_menu)
+        self.manage_budget_p2 = ManageBudget(self, self.main_menu)
 
         #layout
         self.main_menu.place(relx=0.5, rely=0, relwidth=1, relheight=1, anchor='n')
@@ -42,6 +47,9 @@ class MainWindow(ctk.CTk):
         self.create_new_p2.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
         self.create_new_p3.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
 
+        self.manage_budget_p1.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
+        self.manage_budget_p2.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
+
         create_new_button_panel.place(relx=0.5, rely=1, relwidth=1, relheight=0.1, anchor='s')
 
         #other variables 
@@ -49,12 +57,30 @@ class MainWindow(ctk.CTk):
         self.create_new_pages = [self.create_new_p1, self.create_new_p2, self.create_new_p3]
         self.current_page_createnew = 0
 
+        #list that tracks pages for create_new_button_panel
+        self.manage_budget_pages = [self.manage_budget_p1, self.manage_budget_p2]
+        self.current_page_manage_budget = 0
+
         #NOTE directory where user files will be saved may go here
         
         self.main_menu.tkraise() #main menu shows up at launch
         self.mainloop()
-
-    def back_button(self):
+    
+    #two functions to check if user pressed create new or manage existing budget
+    def createnew_or_managebudget_pressed_back(self):
+        if self.main_menu.createnew_or_manage == "create new":
+            self.back_button_createnew()
+        if self.main_menu.createnew_or_manage == "manage budget":
+            self.back_button_managebudget()
+    
+    def createnew_or_managebudget_pressed_continue(self):
+        if self.main_menu.createnew_or_manage == "create new":
+            self.continue_button_createnew()
+        if self.main_menu.createnew_or_manage == "manage budget":
+            self.continue_button_managebudget()
+    
+    #two sets of functions setting behaviour of continue and back buttons, for the create new and manage existing sections
+    def back_button_createnew(self):
         if self.current_page_createnew > 0: 
             if self.current_page_createnew == 1: #current page: 2 (going to 1)
                 self.create_new_p2.clear_template() 
@@ -66,7 +92,7 @@ class MainWindow(ctk.CTk):
         else:
             self.main_menu.tkraise()
     
-    def continue_button(self):
+    def continue_button_createnew(self):
         if self.current_page_createnew == 0: #current page: 1 (going to 2)
             self.create_new_p2.display_template_and_title(self.create_new_p1.template_title.get(), self.create_new_p1.template_list) #display chosen template
             self.create_new_p2.set_treeview_style_template_editor()
@@ -78,10 +104,26 @@ class MainWindow(ctk.CTk):
         if self.current_page_createnew < len(self.create_new_pages) - 1:
             self.create_new_pages[self.current_page_createnew + 1].tkraise()
             self.current_page_createnew += 1
+    
+    def back_button_managebudget(self):
+        if self.current_page_manage_budget > 0:
+            print("this button will send you back by one page if you are not at the first one")
+        else:
+            self.main_menu.tkraise()
+    
+    def continue_button_managebudget(self):
+        if self.current_page_manage_budget == 0: #current page:1 (going to 2)
+            self.manage_budget_p2.display_budget_management_table(self.manage_budget_p1.budget_filename) #likely will need to pass page 1 in here
+            self.manage_budget_p2.set_treeview_style_managebudget_table()
+        if self.current_page_manage_budget < len(self.manage_budget_pages) - 1:
+            self.manage_budget_pages[self.current_page_manage_budget + 1].tkraise()
+            self.current_page_manage_budget += 1
+        else:
+            print("you are at end of this process, for now")
 
 #a frame that holds the main menu (title, buttons(3), version note)
 class MainMenu(ctk.CTkFrame):
-    def __init__(self, parent, create_new_frame, create_new_button_panel_frame):
+    def __init__(self, parent, create_new_frame, create_new_button_panel_frame, manage_budget_frame):
         super().__init__(master=parent)
         self.grid_columnconfigure((0,2), weight=(1), uniform='a')
         self.grid_columnconfigure((1), weight=(4), uniform='a')
@@ -89,18 +131,22 @@ class MainMenu(ctk.CTkFrame):
         self.grid_rowconfigure((1,2,3), weight=1)
         self.grid_rowconfigure((4), weight=0)
         
-        #pass each frame/page that each button in Main menu can raise
+        #pass each frame/page/variable that each button in Main menu can raise
         self.create_new_p1 = create_new_frame
         self.button_panel = create_new_button_panel_frame
+        self.manage_budget_p1 = manage_budget_frame
 
         #widgets 1 label,3 buttons, another label
         self.main_menu_label = ctk.CTkLabel(self, text="Erika's Budget Manager", text_color="#00aaff", font=('calibri', 65))
         
         self.create_new_button = ctk.CTkButton(self, text="Create a New Budget", fg_color="#00aaff", font=('calibri', 40), command = self.create_new)
-        self.open_existing_button = ctk.CTkButton(self, text="Manage an Existing Budget", fg_color="#00aaff", font=('calibri', 40))
+        self.open_existing_button = ctk.CTkButton(self, text="Manage an Existing Budget", fg_color="#00aaff", font=('calibri', 40), command = self.manage_budget)
         self.options_button = ctk.CTkButton(self, text="Options", fg_color="#00aaff", font=('calibri', 40))
 
         self.version_note = ctk.CTkLabel(self, text="Version 0.2", text_color="#686868")
+
+        #variables
+        self.createnew_or_manage = "" #indicator stores one value when 'create new' is pressed, another for 'manage budget'
 
         #layout
         self.main_menu_label.grid(row=0, column=1, columnspan=1, sticky='ew')
@@ -111,14 +157,21 @@ class MainMenu(ctk.CTkFrame):
 
         self.version_note.grid(row=4, column=2)
 
-    #initiate create new
+    #functions to start budget processes
     def create_new(self):
+        self.createnew_or_manage = "create new"
         self.create_new_p1.tkraise()
         self.button_panel.tkraise()
         self.create_new_p1.display_template_list()
+    
+    def manage_budget(self):
+        self.createnew_or_manage = "manage budget"
+        self.manage_budget_p1.tkraise()
+        self.button_panel.tkraise()
+        self.manage_budget_p1.display_budget_files()
        
-class ChooseBudgetTemplate(ctk.CTkFrame):
-    def __init__(self, parent):
+class RadioButtonMenu(ctk.CTkFrame):
+    def __init__(self, parent, menu_title):
         super().__init__(master=parent)
         self.grid_columnconfigure(0, weight=10)
         self.grid_columnconfigure(1, weight=1)
@@ -127,15 +180,15 @@ class ChooseBudgetTemplate(ctk.CTkFrame):
         self.grid_rowconfigure(2, weight=50)
 
         #widgets
-        self.create_new_budget_label = ctk.CTkLabel(self, text="Choose a Budget Template", text_color="#00aaff", font=('calibri', 55))
+        self.menu_label = ctk.CTkLabel(self, text=menu_title, text_color="#00aaff", font=('calibri', 55))
 
         self.scrolling_list = ctk.CTkScrollableFrame(self)
 
         self.template_title = ctk.StringVar(value="")
-        #self.template_list = self.display_template_list()
+        self.budget_filename = ctk.StringVar(value="")
         
         #layout
-        self.create_new_budget_label.grid(row=0, column=0, sticky='ew', columnspan=2)
+        self.menu_label.grid(row=0, column=0, sticky='ew', columnspan=2)
     
         self.scrolling_list.grid(row=2, column=0, sticky='nsew', padx=80, columnspan=2)
         self.scrolling_list.grid_columnconfigure(0, weight=1)
@@ -154,11 +207,22 @@ class ChooseBudgetTemplate(ctk.CTkFrame):
         except FileNotFoundError:
             print("template json file not found")
         for index, template in enumerate(self.template_list):
-            self.radiobutton = ctk.CTkRadioButton(self.scrolling_list, text=template.get("Title"), value=template.get("Title"), variable=self.template_title) 
-            self.radiobutton.grid(row=0+index, column=0, pady=5, sticky='w')
+            self.template_radiobutton = ctk.CTkRadioButton(self.scrolling_list, text=template.get("Title"), value=template.get("Title"), variable=self.template_title) 
+            self.template_radiobutton.grid(row=0+index, column=0, pady=5, sticky='w')
         return self.template_list
-        
-#may want to set the default to be selected upon entering (so user cannot proceed without a template selected)
+    
+    #find all sqlite files in cwd, and place them in list - when page is raised
+    def display_budget_files(self):
+        self.budget_list = []
+        self.path = os.getcwd()
+        self.file_list = os.listdir(self.path)
+        for file in self.file_list:
+            if file.endswith(".sqlite") == True:
+                self.budget_list.append(file)
+        for index, budget in enumerate(self.budget_list):
+            budget_name = budget.split(".")[0]
+            self.budget_radiobutton = ctk.CTkRadioButton(self.scrolling_list, text=budget_name, value=budget, variable=self.budget_filename)
+            self.budget_radiobutton.grid(row=0+index, column=0, pady=5, sticky='w')
 
 class EditBudgetTemplate(ctk.CTkFrame):
     def __init__(self, parent):
@@ -553,21 +617,21 @@ class EnterBudgetAmounts(ctk.CTkFrame):
     #these functions trigger when hitting 'continue' button
     def check_budget_table(self):
         self.blank_cells_found_error_occured = False
-        blank_annuals = []
-        blank_monthlies = []
+        self.blank_annuals = []
+        self.blank_monthlies = []
         for inc_exp in self.budget_table.get_children(): #consider using identify_row(y) if loop thru all y's is doable, may require interaction with .index(item)
             for cat in self.budget_table.get_children(inc_exp):
                 for subcat in self.budget_table.get_children(cat):
                     if self.budget_table.item(subcat).get("values")[3] == 2 and self.budget_table.item(subcat).get("values")[1] == "":
-                        blank_annuals.append(self.budget_table.item(subcat).get("values")[0])                     
+                        self.blank_annuals.append(self.budget_table.item(subcat).get("values")[0])                     
                     if self.budget_table.item(subcat).get("values")[3] == 1 and self.budget_table.item(subcat).get("values")[2] == "":
-                        blank_monthlies.append(self.budget_table.item(subcat).get("values")[0])
-        if blank_annuals != [] or blank_monthlies != []:
-            self.blank_cells_found_error(blank_annuals, blank_monthlies)
-        if blank_annuals == [] and blank_monthlies == []:
+                        self.blank_monthlies.append(self.budget_table.item(subcat).get("values")[0])
+        if self.blank_annuals != [] or self.blank_monthlies != []:
+            self.blank_cells_found_error()
+        if self.blank_annuals == [] and self.blank_monthlies == []:
             self.account_selection()
 
-    def blank_cells_found_error(self, blank_annuals, blank_monthlies):
+    def blank_cells_found_error(self):
         self.blank_cells_warning_window = ctk.CTkToplevel()
         self.blank_cells_warning_window.title("Blank Budget Categories")
         self.blank_cells_warning_window.geometry("500x250")
@@ -587,7 +651,7 @@ class EnterBudgetAmounts(ctk.CTkFrame):
         blank_annual_scrolling_frame = ctk.CTkScrollableFrame(self.blank_cells_warning_window)
         blank_annual_scrolling_frame.grid_columnconfigure(0, weight=1)
         blank_annual_scrolling_frame.grid_rowconfigure(0, weight=1, pad=0)
-        for index, cell in enumerate(blank_annuals):
+        for index, cell in enumerate(self.blank_annuals):
             blank_annual_list_title = ctk.CTkLabel(blank_annual_scrolling_frame, text="Annual", font=("calibri", 20, "underline"))
             blank_annual_list_title.grid(row=0, column=0)
             blank_annual_list = ctk.CTkLabel(blank_annual_scrolling_frame, text=cell)
@@ -596,14 +660,14 @@ class EnterBudgetAmounts(ctk.CTkFrame):
         blank_monthly_scrolling_frame = ctk.CTkScrollableFrame(self.blank_cells_warning_window)
         blank_monthly_scrolling_frame.grid_columnconfigure(0, weight=1)
         blank_monthly_scrolling_frame.grid_rowconfigure(0, weight=1)
-        for index, cell in enumerate(blank_monthlies):
+        for index, cell in enumerate(self.blank_monthlies):
             blank_monthlies_list_title = ctk.CTkLabel(blank_monthly_scrolling_frame, text="Monthly", font=("calibri", 20, "underline"))
             blank_monthlies_list_title.grid(row=0, column=0)
             blank_monthlies_list = ctk.CTkLabel(blank_monthly_scrolling_frame, text=cell)
             blank_monthlies_list.grid(row=1+index, column=0, pady=0)
         
         blank_cells_cancel = ctk.CTkButton(self.blank_cells_warning_window, text="Cancel", fg_color="#00aaff", font=("calibri", 18), command=lambda: self.blank_cells_warning_window.destroy())
-        blank_cells_confirm = ctk.CTkButton(self.blank_cells_warning_window, text="Confirm", fg_color="#00aaff", font=("calibri", 18), command=self.account_selection)
+        blank_cells_confirm = ctk.CTkButton(self.blank_cells_warning_window, text="Confirm", fg_color="#00aaff", font=("calibri", 18), command=self.fill_empty_cells_with_0)
 
         #layout
         blank_cells_message.grid(row=0, column=0, columnspan=2, sticky="new") 
@@ -614,6 +678,21 @@ class EnterBudgetAmounts(ctk.CTkFrame):
         blank_cells_cancel.grid(row=2, pady=10, column=0)
         blank_cells_confirm.grid(row=2, pady=10, column=1)
     
+    def fill_empty_cells_with_0(self):
+        for inc_exp in self.budget_table.get_children(): #consider using identify_row(y) if loop thru all y's is doable, may require interaction with .index(item)
+            for cat in self.budget_table.get_children(inc_exp):
+                for subcat in self.budget_table.get_children(cat):
+                    if self.budget_table.item(subcat).get("values")[3] == 2 and self.budget_table.item(subcat).get("values")[1] == "":
+                        annual_row_with_0 = self.budget_table.item(subcat).get("values")
+                        annual_row_with_0[1] = '${:,.2f}'.format(float(0.00))   
+                        self.budget_table.item(subcat, values=annual_row_with_0)     
+                    if self.budget_table.item(subcat).get("values")[3] == 1 and self.budget_table.item(subcat).get("values")[2] == "":
+                        self.blank_monthlies.append(self.budget_table.item(subcat).get("values")[0])
+                        monthly_row_with_0 = self.budget_table.item(subcat).get("values")
+                        monthly_row_with_0[2] = '${:,.2f}'.format(float(0.00))   
+                        self.budget_table.item(subcat, values=monthly_row_with_0)
+        self.account_selection()                           
+
     def account_selection(self):
         if self.blank_cells_found_error_occured == True:
             self.blank_cells_warning_window.destroy() 
@@ -633,8 +712,8 @@ class EnterBudgetAmounts(ctk.CTkFrame):
         #widgets
         account_selection_message_0 = ctk.CTkLabel(self.account_selection_window, text="One Last Step...", text_color="#00aaff", font=('calibri', 18))
         account_selection_message_1 = ctk.CTkLabel(self.account_selection_window, text="-If you want to keep track of expenses across more than one account, select the account types from the list below.", text_color="#00aaff", font=('calibri', 15))
-        account_selection_message_2 = ctk.CTkLabel(self.account_selection_window, text="-You can also add one if it is not in the provided list.", text_color="#00aaff", font=('calibri', 15))
-        account_selection_message_3 = ctk.CTkLabel(self.account_selection_window, text="-For each account you choose, there will be an additional column for each month in your budget (So don't add too many!).", text_color="#00aaff", font=('calibri', 15))
+        account_selection_message_2 = ctk.CTkLabel(self.account_selection_window, text="-You can also add one if it is not in the provided list (not implemented).", text_color="#00aaff", font=('calibri', 15))
+        account_selection_message_3 = ctk.CTkLabel(self.account_selection_window, text="-For each account selected, there will be an additional column in your budget for each month (So don't add too many!).", text_color="#00aaff", font=('calibri', 15))
         account_selection_message_4 = ctk.CTkLabel(self.account_selection_window, text="-If you are new to budgeting \"All Accounts\" is recommended.", text_color="#00aaff", font=('calibri', 15))
 
         def user_selects_account(): 
@@ -856,6 +935,7 @@ class EnterBudgetAmounts(ctk.CTkFrame):
         for account in self.selected_accounts:
             cur.execute('''INSERT OR IGNORE INTO Accounts ([Account Name]) VALUES (?)''', (account, ))
         conn.commit()
+        conn.close
 
         #confirm budget saved
         budget_confirmed = os.path.isfile(self.path)
@@ -909,6 +989,178 @@ class EnterBudgetAmounts(ctk.CTkFrame):
             for inc_exp in self.budget_table.get_children():
                 self.budget_table.delete(inc_exp)
             self.budget_displayed == 0
+
+class ManageBudget(ctk.CTkFrame):
+    def __init__(self, parent, main_menu_frame):
+        super().__init__(master=parent)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)    
+        self.grid_rowconfigure(1, weight=50) 
+
+        #so main menu is raisable from here
+        self.mainmenu = main_menu_frame
+
+        #widgets
+        self.manage_budget_label = ctk.CTkLabel(self, text="Manage Budget: no budget selected", text_color="#00aaff", font=('calibri', 35))
+        
+        self.manage_budget_table_frame = ctk.CTkFrame(self)
+        
+        self.tab_list = ["Annual", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December", "Yearly Total"]
+        
+        self.manage_budget_tabs = ttk.Notebook(self.manage_budget_table_frame)
+        for tab in self.tab_list:
+            self.tab = ttk.Frame(self.manage_budget_tabs)
+            self.manage_budget_tabs.add(self.tab, text=tab)
+    
+        self.budget_displayed_in_manager = 0 #indicator: budget is displayed in table
+       
+
+        # def budget_table_double_click(event):
+        #     if self.budget_table.item(self.budget_table.parent(self.budget_table.parent(self.budget_table.focus()))).get("values") == "":
+        #         print("Non-sub-category") 
+        #     if self.budget_table.item(self.budget_table.parent(self.budget_table.parent(self.budget_table.focus()))).get("values") != "": 
+        #         self.row = self.budget_table.identify_row(event.y)
+        #         self.row_data = self.budget_table.item(self.row).get("values")
+        #         if self.budget_table.item(self.row).get("values")[3] == 2: #annual subcat clicked 
+        #             box_location_annual = self.budget_table.bbox(self.row, column="#2")
+        #             self.annual = True
+        #             self.budget_entry = ctk.CTkEntry(self.budget_table, width=box_location_annual[2], height=box_location_annual[3])
+        #             self.budget_entry.place(x=box_location_annual[0], y=box_location_annual[1])
+        #             self.budget_entry.focus()
+        #             self.budget_entry.bind("<Return>", update_budget_table_entry)
+        #             self.budget_entry.bind("<FocusOut>", update_budget_table_entry)
+        #         if self.budget_table.item(self.row).get("values")[3] == 1: #monthly subcat clicked
+        #             box_location_monthly = self.budget_table.bbox(self.row, column="#3")
+        #             self.annual = False
+        #             self.budget_entry = ctk.CTkEntry(self.budget_table, width=box_location_monthly[2], height=box_location_monthly[3])
+        #             self.budget_entry.place(x=box_location_monthly[0], y=box_location_monthly[1])
+        #             self.budget_entry.focus()
+        #             self.budget_entry.bind("<Return>", update_budget_table_entry)
+        #             self.budget_entry.bind("<FocusOut>", update_budget_table_entry)
+        #     return "break"
+
+        # def update_budget_table_entry(*args):
+        #     if self.annual == True:
+        #         try:
+        #             self.row_data[1] = '${:,.2f}'.format(float(self.budget_entry.get())) 
+        #             self.budget_table.item(self.row, values=self.row_data)
+        #         except ValueError:
+        #             print("value error")
+        #     if self.annual == False:
+        #         try:
+        #             self.row_data[2] = '${:,.2f}'.format(float(self.budget_entry.get()))
+        #             self.budget_table.item(self.row, values=self.row_data)
+        #         except ValueError:
+        #             print('value error')
+        #     self.budget_entry.destroy()
+            
+        # self.budget_table.bind("<Double-1>", budget_table_double_click)
+
+        #layout
+        self.manage_budget_label.grid(row=0, column=0, sticky='new')
+        self.manage_budget_table_frame.grid(row=1, column=0, padx=80, sticky='nsew')
+        self.manage_budget_tabs.pack(expand=True, fill='both')
+        
+
+    #these functions trigger when comming to this page from budget file selection
+    def display_budget_management_table(self, budget_filename):
+        self.budget_displayed_in_manager = 1
+        self.budget_name = budget_filename.get().split(".")[0] #set label to filename
+        self.manage_budget_label.configure(text="Manage Budget: " + self.budget_name)
+        conn = sqlite3.connect(budget_filename.get()) 
+        cur = conn.cursor()
+        #Create treeviews, set cols and headings
+        cur.execute("select Accounts.[Account Name], Accounts.id from Accounts")
+        budget_accounts = cur.fetchall()
+        self.budget_table_headings = ["", "Budget"]
+        for account in budget_accounts:
+            self.budget_table_headings.append(account[0])
+        if len(budget_accounts) > 1:
+            self.budget_table_headings.append("Total")
+        self.treeview_list = []
+        for i in self.tab_list:
+            self.budget_table = ttk.Treeview(self.manage_budget_tabs.nametowidget(self.manage_budget_tabs.tabs()[self.tab_list.index(i)]), show='headings', style="Treeview")
+            self.treeview_list.append(self.budget_table)
+            self.budget_table.configure(columns=self.budget_table_headings)
+            for col in self.budget_table_headings:
+                self.budget_table.heading(col, text=col)
+                if self.budget_table_headings.index(col) == 0:
+                    self.budget_table.column(col, stretch=True, width=200)
+                else:
+                    self.budget_table.column(col, stretch=True, width=50)
+            self.budget_table.pack(expand=True, fill='both', pady=5, padx=5)
+        self.display_budget_categories(self.treeview_list, budget_filename)
+
+    def display_budget_categories(self, treeview_list, budget_filename):
+        conn = sqlite3.connect(budget_filename.get()) 
+        cur = conn.cursor()
+        cur.execute("select [Income Expense].[Income/Expense], [Income Expense].id from [Income Expense]")
+        income_expense = cur.fetchall()
+        cur.execute("select [Category Name].Category, [Category Name].Income_expense_id, [Category Name].id from [Category Name]")
+        categories = cur.fetchall()
+        cur.execute('''select [Sub-Category Name].[Sub-Category], [Sub-Category Name].Monthly_annual_id, [Sub-Category Name].id, 
+                    [Budget Amounts].Amount, [Budget Amounts].Sub_Category_id, [Budget Amounts].Category_id, [Budget Amounts].id
+                    from [Sub-Category Name] join [Budget Amounts] on [Budget Amounts].Sub_Category_id = [Sub-Category Name].id''')
+        subcategories_amounts_join = cur.fetchall()
+        subcats_budgetamounts = []
+        for entry in subcategories_amounts_join:
+            subcats_budgetamounts.append([entry[0], entry[3], entry[5], entry[1]]) #[subcat label, amount, category-id, monthly-annual]
+        for table in treeview_list:
+            for inc_exp in income_expense:
+                inc_exp_section = table.insert("", tk.END, values=(inc_exp[0], "", ""), open=True)
+                income_expense_id = inc_exp[1]
+                for category in categories:
+                    if category[1] == income_expense_id:
+                        budget_category_labels = [category[0]]
+                        [budget_category_labels.append("-----") for i in range(1,len(self.budget_table_headings))]
+                        budget_category = table.insert(inc_exp_section, tk.END, values=(budget_category_labels), open=True)
+                        category_id = category[2]
+                        for subcat in subcats_budgetamounts:
+                            if table == treeview_list[0]: #annual tab
+                                if subcat[2] == category_id and subcat[3] == 1: #monthly dashed out
+                                    subcat_to_display = [subcat[0], subcat[1]]
+                                    [subcat_to_display.append("-----") for i in range(2,len(self.budget_table_headings))]
+                                    table.insert(budget_category, tk.END, values=(subcat_to_display), open=True)
+                                elif subcat[2] == category_id and subcat[3] == 2: #annual
+                                    subcat_to_display = [subcat[0], subcat[1]]
+                                    [subcat_to_display.append("") for i in range(2,len(self.budget_table_headings))]
+                                    table.insert(budget_category, tk.END, values=(subcat_to_display), open=True)
+                            elif table == treeview_list[13] and subcat[2] == category_id: #yearly total tab
+                                subcat_budget_value = (subcat[1].replace(",", "")).strip("$")
+                                if subcat[3] == 1: 
+                                    subcat_budget_value = (float(subcat_budget_value)) * 12
+                                    subcat_budget_value = '${:,.2f}'.format(float(subcat_budget_value))
+                                    subcat[1] = subcat_budget_value
+                                yearly_subcat_to_display = [subcat[0], subcat[1]]
+                                table.insert(budget_category, tk.END, values=(yearly_subcat_to_display), open=True) 
+                            else: #monthly tabs
+                                if subcat[2] == category_id and subcat[3] == 1: #monthly
+                                    subcat_to_display = [subcat[0], subcat[1]]
+                                    [subcat_to_display.append("") for i in range(2,len(self.budget_table_headings))]
+                                    table.insert(budget_category, tk.END, values=(subcat_to_display), open=True)
+                                elif subcat[2] == category_id and subcat[3] == 2: #annual dashed out
+                                    subcat_to_display = [subcat[0], subcat[1]]
+                                    [subcat_to_display.append("-----") for i in range(2,len(self.budget_table_headings))]
+                                    table.insert(budget_category, tk.END, values=(subcat_to_display), open=True)      
+    
+
+            
+            #if there is more than one account, they will also total across monthes and annual, then 
+            #the total will sum those two columns
+
+            #need to think about how to deal with adding up totals and displaying that.  
+            #this includes: total income, expenses, totals for each category, and sumamries of shortfall/surplus for each month, annuals, and then the yearly total
+
+    def set_treeview_style_managebudget_table(self):
+        self.bg_color_table = self.manage_budget_table_frame._apply_appearance_mode(ctk.ThemeManager.theme["CTkFrame"]["fg_color"])
+        self.selected_color_table = self.manage_budget_table_frame._apply_appearance_mode(ctk.ThemeManager.theme["CTkButton"]["fg_color"])
+        self.text_color_table = self.manage_budget_table_frame._apply_appearance_mode(ctk.ThemeManager.theme["CTkLabel"]["text_color"])
+
+        self.template_table_style = ttk.Style(self)
+        self.template_table_style.theme_use('default')
+        self.template_table_style.configure("Treeview", fieldbackground="#343434", background="#343434", foreground="#ffffff", font=('calibri', 15), borderwidth=0, rowheight=28)
+        self.template_table_style.configure("Treeview.Heading", borderwidth=1, relief="ridge", background="#343434", foreground="#ffffff", font=('calibri', 15))
+        self.template_table_style.map("Treeview", background=[("selected", "#303030")], foreground=[("selected", self.selected_color_table)])
 
 class SaveWindow(ctk.CTkToplevel):
     def __init__(self, parent, save_object_type, save_object_title, save_object=None, new_template=None): #when expanding this class for saving of DB, confirm required vs optional arguments
