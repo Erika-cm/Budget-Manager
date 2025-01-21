@@ -1088,11 +1088,11 @@ class ManageBudget(ctk.CTkFrame):
         cur = conn.cursor()
         #Create treeviews, set cols and headings
         cur.execute("select Accounts.[Account Name], Accounts.id from Accounts")
-        budget_accounts = cur.fetchall()
+        self.budget_accounts = cur.fetchall()
         self.budget_table_headings = ["", "Budget"]
-        for account in budget_accounts:
+        for account in self.budget_accounts:
             self.budget_table_headings.append(account[0])
-        if len(budget_accounts) > 1:
+        if len(self.budget_accounts) > 1:
             self.budget_table_headings.append("Total")
         self.treeview_list = []
         for i in self.tab_list:
@@ -1120,34 +1120,30 @@ class ManageBudget(ctk.CTkFrame):
                     [Budget Amounts].Amount, [Budget Amounts].Sub_Category_id, [Budget Amounts].Category_id, [Budget Amounts].id
                     from [Sub-Category Name] join [Budget Amounts] on [Budget Amounts].Sub_Category_id = [Sub-Category Name].id''')
         subcategories_amounts_join = cur.fetchall()
-        cur.execute('''select Transactions.Amount, Transactions.Category_id, Transactions.Sub_Category_id, Transactions.Account_Type_id, Transactions.Month,
-                    [Category Name].Income_expense_id 
-                    from Transactions join  [Category Name] on Transactions.Category_id = [Category Name].id''')
-        transactions = cur.fetchall()
-        print(transactions)
         subcats_budgetamounts = []
         for entry in subcategories_amounts_join:
-            subcats_budgetamounts.append([entry[0], entry[3], entry[5], entry[1]]) #[subcat label, amount, category-id, monthly-annual]
+            subcats_budgetamounts.append([entry[0], entry[3], entry[5], entry[1], entry[2]]) #[subcat label, amount, category-id, monthly-annual, sub-cat-id]
         for table in treeview_list:
             for inc_exp in income_expense:
-                inc_exp_section = table.insert("", tk.END, values=(inc_exp[0], "", ""), open=True)
                 income_expense_id = inc_exp[1]
+                inc_exp_section = table.insert("", tk.END, values=(inc_exp[0], "", ""), open=True, tags=income_expense_id)                
                 for category in categories:
                     if category[1] == income_expense_id:
                         budget_category_labels = [category[0]]
                         [budget_category_labels.append("-----") for i in range(1,len(self.budget_table_headings))]
-                        budget_category = table.insert(inc_exp_section, tk.END, values=(budget_category_labels), open=True)
                         category_id = category[2]
+                        budget_category = table.insert(inc_exp_section, tk.END, values=(budget_category_labels), open=True, tags=category_id)
                         for subcat in subcats_budgetamounts:
+                            subcat_id = subcat[4]
                             if table == treeview_list[0]: #annual tab
                                 if subcat[2] == category_id and subcat[3] == 1: #monthly dashed out
                                     subcat_to_display = [subcat[0], subcat[1]]
                                     [subcat_to_display.append("-----") for i in range(2,len(self.budget_table_headings))]
-                                    table.insert(budget_category, tk.END, values=(subcat_to_display), open=True)
+                                    table.insert(budget_category, tk.END, values=(subcat_to_display), open=True, tags=subcat_id)
                                 elif subcat[2] == category_id and subcat[3] == 2: #annual
                                     subcat_to_display = [subcat[0], subcat[1]]
-                                    [subcat_to_display.append("") for i in range(2,len(self.budget_table_headings))]#this may be where transactions are added
-                                    table.insert(budget_category, tk.END, values=(subcat_to_display), open=True)
+                                    [subcat_to_display.append("") for i in range(2,len(self.budget_table_headings))]
+                                    table.insert(budget_category, tk.END, values=(subcat_to_display), open=True, tags=subcat_id)
                             elif table == treeview_list[13] and subcat[2] == category_id: #yearly total tab
                                 subcat_budget_value = (subcat[1].replace(",", "")).strip("$")
                                 if subcat[3] == 1: 
@@ -1155,27 +1151,58 @@ class ManageBudget(ctk.CTkFrame):
                                     subcat_budget_value = '${:,.2f}'.format(float(subcat_budget_value))
                                     subcat[1] = subcat_budget_value
                                 yearly_subcat_to_display = [subcat[0], subcat[1]]
-                                table.insert(budget_category, tk.END, values=(yearly_subcat_to_display), open=True) 
+                                table.insert(budget_category, tk.END, values=(yearly_subcat_to_display), open=True, tags=subcat_id) 
                             else: #monthly tabs
                                 if subcat[2] == category_id and subcat[3] == 1: #monthly
                                     subcat_to_display = [subcat[0], subcat[1]]
-                                    [subcat_to_display.append("") for i in range(2,len(self.budget_table_headings))] #this may be where transactions are added
-                                    table.insert(budget_category, tk.END, values=(subcat_to_display), open=True)
+                                    [subcat_to_display.append("") for i in range(2,len(self.budget_table_headings))] 
+                                    table.insert(budget_category, tk.END, values=(subcat_to_display), open=True, tags=subcat_id)
                                 elif subcat[2] == category_id and subcat[3] == 2: #annual dashed out
                                     subcat_to_display = [subcat[0], subcat[1]]
                                     [subcat_to_display.append("-----") for i in range(2,len(self.budget_table_headings))]
-                                    table.insert(budget_category, tk.END, values=(subcat_to_display), open=True)
+                                    table.insert(budget_category, tk.END, values=(subcat_to_display), open=True, tags=subcat_id)
         self.treeview_list[0].bind("<Button-1>", self.activate_budget_buttons)
         self.treeview_list[0].bind("<Double-1>", self.manage_budget_double_click)
-        self.budget_displayed_in_manager = 1      
+        self.budget_displayed_in_manager = 1
+        self.add_transaction_data_from_db(self.treeview_list, budget_filename)      
     
-
-            
-            #if there is more than one account, they will also total across monthes and annual, then 
-            #the total will sum those two columns
-
-            #need to think about how to deal with adding up totals and displaying that.  
-            #this includes: total income, expenses, totals for each category, and sumamries of shortfall/surplus for each month, annuals, and then the yearly total
+    def add_transaction_data_from_db(self, treeview_list, budget_filename):
+        conn = sqlite3.connect(budget_filename.get()) 
+        cur = conn.cursor()
+        cur.execute('''select Transactions.id, Transactions.Amount, Transactions.Category_id, Transactions.Sub_Category_id, Transactions.Account_Type_id, Transactions.Month,
+                    [Category Name].Income_expense_id 
+                    from Transactions join  [Category Name] on Transactions.Category_id = [Category Name].id''')
+        transactions = cur.fetchall()
+        for tab, table in enumerate(treeview_list[:-1]):
+            matched_transactions = []
+            non_matched_transactions = []
+            for transaction in transactions:
+                if transaction[5] == tab:
+                    matched_transactions.append(transaction)
+                else:
+                    non_matched_transactions.append(transaction)
+            transactions = non_matched_transactions
+            #do something with the matched transactions here, likely put this into a separate func
+            for inc_exp in table.get_children():
+                for cat in table.get_children(inc_exp):
+                    for subcat in table.get_children(cat):
+                        match_found = False
+                        for account in self.budget_accounts:
+                            transactions_for_current_cell = 0
+                            for transaction_match in matched_transactions:
+                                if transaction_match[3] == table.item(subcat).get("tags")[0] and transaction_match[4] == account[1]:
+                                    transactions_for_current_cell += transaction_match[1]
+                                    match_found = True
+                            if match_found == True:
+                                subcat_data = table.item(subcat).get("values") 
+                                subcat_data[account[1] + 1] = transactions_for_current_cell
+                                transaction_total = 0
+                                if len(self.budget_accounts) > 1:
+                                    for num in range(2, len(self.budget_accounts)+2):
+                                        if type(subcat_data[num]) != str:
+                                                 transaction_total += subcat_data[num]
+                                    subcat_data[-1] = transaction_total
+                                table.item(subcat, values=subcat_data)
 
     def set_treeview_style_managebudget_table(self):
         self.bg_color_table = self.manage_budget_table_frame._apply_appearance_mode(ctk.ThemeManager.theme["CTkFrame"]["fg_color"])
