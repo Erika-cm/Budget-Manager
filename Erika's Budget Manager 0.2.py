@@ -136,7 +136,7 @@ class MainWindow(ctk.CTk):
             self.manage_budget_p2.continue_test()
     
     def transaction_list_window(self):
-        self.manage_budget_p2.transaction_list()
+        self.manage_budget_p2.selected_cell_transaction_list()
     
     def transaction_editor_window(self):
         self.manage_budget_p2.get_selected_cell_info(called_by_manager=1)
@@ -1226,7 +1226,7 @@ class ManageBudget(ctk.CTkFrame):
                             transaction_total = 0
                             if len(self.budget_accounts) > 1:
                                 for num in range(2, len(self.budget_accounts)+2):
-                                    if subcat_data[num] != '':  #NOTE if we display transaction data as formated strings, this will not work (this double checks that we have not selected the subcat text or budget amount, is this redundnat?)
+                                    if subcat_data[num] != '':  #NOTE is this if condition needed?
                                         subcat_data[num] = '{:.2f}'.format(float(subcat_data[num]))
                                         subcat_data[num] = float(subcat_data[num])
                                         transaction_total += subcat_data[num]
@@ -1284,7 +1284,7 @@ class ManageBudget(ctk.CTkFrame):
         self.template_table_style.configure("Treeview.Heading", borderwidth=1, relief="ridge", background="#343434", foreground="#ffffff", font=('calibri', 15))
         self.template_table_style.map("Treeview", background=[("selected", "#303030")], foreground=[("selected", self.selected_color_table)])
 
-    def transaction_list(self):
+    def selected_cell_transaction_list(self):
         self.transaction_list_window = ctk.CTkToplevel()
         self.transaction_list_window.title("Add New Transaction")
         self.transaction_list_window.geometry("600x550")
@@ -1306,10 +1306,10 @@ class ManageBudget(ctk.CTkFrame):
         self.cell_transaction_list_frame.grid_rowconfigure(0, weight=1)
 
         self.transaction_list_cancel_button = ctk.CTkButton(self.transaction_list_window, text="Cancel", fg_color="#00aaff", font=('calibri', 24), command=self.transaction_list_window.destroy)
-        self.transaction_list_add_new_button = ctk.CTkButton(self.transaction_list_window, text="Add New", fg_color="#00aaff", font=('calibri', 24), command=self.transaction_editor)
-        self.transaction_list_edit_button = ctk.CTkButton(self.transaction_list_window, text="Edit", fg_color="#00aaff", font=('calibri', 24), state="disabled", command=self.transaction_editor)
-        self.transaction_list_delete_button = ctk.CTkButton(self.transaction_list_window, text="Delete", fg_color="#00aaff", font=('calibri', 24), state="disabled")
-        self.transaction_list_confirm_button = ctk.CTkButton(self.transaction_list_window, text="Confirm", fg_color="#00aaff", font=('calibri', 24))
+        self.transaction_list_add_new_button = ctk.CTkButton(self.transaction_list_window, text="Add New", fg_color="#00aaff", font=('calibri', 24), command=lambda button="addnew":self.transaction_editor(button))
+        self.transaction_list_edit_button = ctk.CTkButton(self.transaction_list_window, text="Edit", fg_color="#00aaff", font=('calibri', 24), state="disabled", command=lambda button="edit": self.transaction_editor(button))
+        self.transaction_list_delete_button = ctk.CTkButton(self.transaction_list_window, text="Delete", fg_color="#00aaff", font=('calibri', 24), state="disabled", command=lambda button="delete": self.confirm_transaction_edits(button))
+        self.transaction_list_confirm_button = ctk.CTkButton(self.transaction_list_window, text="Confirm", fg_color="#00aaff", font=('calibri', 24), command=self.confirm_transaction_list)
 
         #layout
         self.transactions_for.grid(row=0, column=0, columnspan=5, sticky="n")
@@ -1327,7 +1327,7 @@ class ManageBudget(ctk.CTkFrame):
 
         self.get_selected_cell_info()
 
-    def get_selected_cell_info(self, called_by_manager = 0):#this func needs an optional arg, indicating which button was pressed
+    def get_selected_cell_info(self, called_by_manager = 0): #called_by_manager = 1 means 'add transaction' button was pressed from manager window (not list window)
         #store selected cell treeview data as 3 dictionaries
         selected_cell_incexp_dict =  self.treeview_list[self.current_tab].item(self.treeview_list[self.current_tab].parent(self.treeview_list[self.current_tab].parent(self.selected_row_item)))
         selected_cell_category_dict = self.treeview_list[self.current_tab].item(self.treeview_list[self.current_tab].parent(self.selected_row_item))
@@ -1344,20 +1344,23 @@ class ManageBudget(ctk.CTkFrame):
         #set up vars for lists of transaction check boxes and their status
         self.list_of_transaction_checkboxes = []
         self.checkbox_statuses = []
-        #var for selected transaction amount with default value = "" when no transaction selected
+
+        #vars for selected transaction amount and id with default value = ""/0 when no transaction selected
         self.selected_transaction_amount = ctk.StringVar(value="")
+        self.selected_transaction_id = ctk.IntVar(value=0)
 
         if called_by_manager == 0: #attempt to load transaction info from database (this func was called from list window)
-            self.load_transactions_from_database()
-        if called_by_manager == 1: #bypass transaction list, and load transactions from database and go to transaction editor (this func was called from manager window)
-            self.transaction_editor()
+            self.load_cell_transactions_from_database()
+        if called_by_manager == 1: #bypass transaction list, and load transactions from database and go to transaction editor (add new was pressed from manager window)
+            button="addnew"
+            self.transaction_editor(button, called_by_manager)
 
-    def load_transactions_from_database(self):       
+    def load_cell_transactions_from_database(self):       
         #load transaction information for selected cell from DB (eventually transaction info will include day and entity)        
         conn = sqlite3.connect(self.budget_filename.get()) 
         cur = conn.cursor()
         cur.execute('''select Transactions.id, [Income Expense].[Income/Expense], [Category Name].Category, [Sub-Category Name].[Sub-Category], Accounts.[Account Name],
-                    Transactions.Amount 
+                    Transactions.Month, Transactions.Amount 
                     from Transactions join  [Category Name] join [Income Expense] join [Sub-Category Name] join [Accounts]
                     on Transactions.Category_id = [Category Name].id 
                     and [Category Name].[Income_Expense_id] = [Income Expense].id
@@ -1366,12 +1369,23 @@ class ManageBudget(ctk.CTkFrame):
                     where ([Income_Expense_id], [Category_id], [Sub_Category_id], [Account_Type_id], Month) = (?, ?, ?, ?, ?)''', (self.selected_cell_info_list[2][1], self.selected_cell_info_list[3][1], self.selected_cell_info_list[4][1], self.selected_cell_info_list[1][1], self.current_tab))
         transactions = cur.fetchall()
         self.cell_info_list = []
-        transactions_list = []
+        self.transactions_list = []
         for transaction in transactions:
-            transactions_list.append(list(transaction))
+            self.transactions_list.append(list(transaction))
 
-        def user_selects_transaction(): 
+        for index, transaction in enumerate(self.transactions_list):
+            transaction_checkbox = ctk.CTkCheckBox(self.cell_transaction_list_frame, text=str(transaction[-1]), command=self.user_selects_transaction)
+            self.list_of_transaction_checkboxes.append(transaction_checkbox)
+            self.checkbox_statuses.append(0)
+            transaction_checkbox.grid(row=0+index, column=0, sticky="wn", pady=5, padx=5)
+        #configure transaction list labels to display selected cell info
+        self.transactions_for_info.configure(text=self.selected_cell_info_list[0][1] + ", " + self.selected_cell_info_list[1][0] + ", " + self.selected_cell_info_list[2][0])
+        self.transactions_for_info_category.configure(text="Category: " + self.selected_cell_info_list[3][0])
+        self.transactions_for_info_subcategory.configure(text="Sub-Category: " + self.selected_cell_info_list[4][0])
+        
+    def user_selects_transaction(self): 
             self.selected_transaction_amount = ctk.StringVar(value="")
+            self.selected_transaction_id = ctk.IntVar(value=0) 
             temp_checkbox_statuses = []
             for checkbox in self.checkbox_statuses:
                 temp_checkbox_statuses.append(checkbox)
@@ -1385,9 +1399,10 @@ class ManageBudget(ctk.CTkFrame):
                     if checkbox.get() == 1:
                         checkbox.deselect()     
             self.checkbox_statuses = temp_checkbox_statuses
-            for checkbox, transaction in zip(self.checkbox_statuses, transactions_list): #store selected transaction amount
+            for checkbox, transaction in zip(self.checkbox_statuses, self.transactions_list): #store selected transaction amount
                 if checkbox == 1:
                     self.selected_transaction_amount = ctk.StringVar(value=transaction[-1])
+                    self.selected_transaction_id = ctk.IntVar(value=transaction[0])
             if 1 in self.checkbox_statuses: #activate edit/delete button on selection
                 self.transaction_list_edit_button.configure(state="normal")
                 self.transaction_list_delete_button.configure(state="normal")
@@ -1397,21 +1412,179 @@ class ManageBudget(ctk.CTkFrame):
                 self.transaction_list_delete_button.configure(state="disabled")
                 self.transaction_list_add_new_button.configure(state="normal")
 
-        for index, transaction in enumerate(transactions_list):
-            transaction_checkbox = ctk.CTkCheckBox(self.cell_transaction_list_frame, text=transaction[-1], command=user_selects_transaction)
-            self.list_of_transaction_checkboxes.append(transaction_checkbox)
+    def add_new_transaction(self):
+        #update the treeview and DB, only called when 'add new' pressed from manager window
+        try:
+            self.selected_row[self.selected_column-1] = round((float(self.selected_row[self.selected_column-1]) + self.transaction_editor_amount), 2)
+        except ValueError:
+            self.selected_row[self.selected_column-1] = round(self.transaction_editor_amount, 2)
+        if len(self.budget_accounts) > 1:
+            try:
+                self.selected_row[-1] = round((float(self.selected_row[-1]) + self.transaction_editor_amount), 2)
+            except ValueError:
+                self.selected_row[-1] = round(self.transaction_editor_amount, 2)
+        self.treeview_list[self.current_tab].item(self.selected_row_item, values=self.selected_row) 
+        #Add new transaction to DB
+        conn = sqlite3.connect(self.budget_filename.get()) 
+        cur = conn.cursor()
+        transacation_cat_id = self.selected_cell_info_list[3][1]
+        transacation_subcat_id = self.selected_cell_info_list[4][1]
+        transacation_account_id = self.selected_cell_info_list[1][1]
+        cur.execute("insert into Transactions (Amount, [Category_id], [Sub_Category_id], [Account_Type_id], Month) Values (?, ?, ?, ?, ?)", (self.transaction_editor_amount, transacation_cat_id, transacation_subcat_id, transacation_account_id, self.current_tab))
+        conn.commit()          
+
+    def confirm_transaction_list(self):
+        new_cell_total = 0
+        #run through list of transactions and checkboxes for their status
+        for index, transaction in enumerate(self.transactions_list):
+            if "new" in self.list_of_transaction_checkboxes[index].cget("text"):
+                new_cell_total = round(new_cell_total + transaction[-1], 2)
+                self.write_transaction_list_to_database("new", transaction)
+            elif "modified" in self.list_of_transaction_checkboxes[index].cget("text"): 
+                amount_modified_only = True
+                account_only_modified_cat = True
+                if transaction[1] != self.selected_cell_info_list[2][0]: #inc/exp
+                    amount_modified_only = False
+                    account_only_modified_cat = False
+                elif transaction[2] != self.selected_cell_info_list[3][0]: #cat
+                    amount_modified_only = False
+                    account_only_modified_cat = False
+                elif transaction[3] != self.selected_cell_info_list[4][0]: #subcat
+                    amount_modified_only = False
+                    account_only_modified_cat = False
+                elif transaction[4] != self.selected_cell_info_list[1][0]: #account
+                    amount_modified_only = False
+                elif transaction[5] != self.selected_cell_info_list[0][-1]: #tab
+                    amount_modified_only = False
+                    account_only_modified_cat = False
+                if amount_modified_only == True: #modified transaction stays in selected cell
+                    new_cell_total = round(new_cell_total + transaction[-1], 2)
+                if account_only_modified_cat == True: #modified transaction stays in selected row, amount may or may not be modified
+                    for account in self.budget_accounts:
+                        if account[0] == transaction[4]:
+                            try:
+                                self.selected_row[account[1] + 1] = round(float(self.selected_row[account[1] + 1]) + transaction[-1], 2)
+                            except ValueError:
+                                self.selected_row[account[1] + 1] = transaction[-1] #Note:row total recalculated below
+                if amount_modified_only == False and account_only_modified_cat == False: #modified transaction moved to another cell, in a different row
+                    for inc_exp in self.treeview_list[transaction[5]].get_children():
+                        for cat in self.treeview_list[transaction[5]].get_children(inc_exp):
+                            for subcat in self.treeview_list[transaction[5]].get_children(cat):
+                                if self.treeview_list[transaction[5]].item(subcat).get("values")[0] == transaction[3]\
+                                    and self.treeview_list[transaction[5]].item(cat).get("values")[0] == transaction[2]\
+                                    and self.treeview_list[transaction[5]].item(inc_exp).get("values")[0] == transaction[1]:
+                                    modified_new_row = subcat
+                                    modified_new_row_data = self.treeview_list[transaction[5]].item(subcat).get("values")
+                                    if len(self.budget_accounts) > 1:
+                                        for account in self.budget_accounts:
+                                            if transaction[4] == account[0]:
+                                                try:
+                                                    modified_new_row_data[account[1] + 1] = round(float(modified_new_row_data[account[1] + 1]) + transaction[-1], 2)
+                                                    modified_new_row_data[-1] = round(float(modified_new_row_data[-1]) + transaction[-1], 2)
+                                                except ValueError:
+                                                    modified_new_row_data[account[1] + 1] = transaction[-1]
+                                                    modified_new_row_data[-1] = transaction[-1]
+                                    else: #only 1 budget account: use col 3/index=2
+                                        try:
+                                            modified_new_row_data[2] = round(float(modified_new_row_data[2]) + transaction[-1], 2)
+                                        except ValueError:
+                                            modified_new_row_data[2] = transaction[-1]
+                                    self.treeview_list[transaction[5]].item(modified_new_row, values=modified_new_row_data) 
+                                    break 
+                self.write_transaction_list_to_database("modified", transaction)
+            elif "deleted" in self.list_of_transaction_checkboxes[index].cget("text"):
+                self.write_transaction_list_to_database("deleted", transaction)
+                continue
+            else: #unaltered transactions
+                new_cell_total = round(new_cell_total + transaction[-1], 2)
+        #update selected row, and col
+        self.selected_row[self.selected_column-1] = new_cell_total
+        if len(self.budget_accounts) > 1:
+            row_total = 0
+            for col in self.selected_row[2:-1]:
+                if col == "":
+                    col = 0
+                row_total += float(col)
+            self.selected_row[-1] = row_total
+        self.treeview_list[self.current_tab].item(self.selected_row_item, values=self.selected_row)
+        self.transaction_list_window.destroy()
+
+    def write_transaction_list_to_database(self, modification: str, transaction):
+        print(transaction, self.selected_cell_info_list)
+        conn = sqlite3.connect(self.budget_filename.get()) 
+        cur = conn.cursor()
+        if modification == "new":
+            transacation_cat_id = self.selected_cell_info_list[3][1]
+            transacation_subcat_id = self.selected_cell_info_list[4][1]
+            transacation_account_id = self.selected_cell_info_list[1][1]
+            cur.execute("insert into Transactions (Amount, [Category_id], [Sub_Category_id], [Account_Type_id], Month) Values (?, ?, ?, ?, ?)", (transaction[-1], transacation_cat_id, transacation_subcat_id, transacation_account_id, transaction[5]))
+        elif modification == "modified":
+            print("update transaction") 
+            cur.execute("select id from [Category Name] where Category = ?", (transaction[2], ))
+            cat_id = cur.fetchone()[0]
+            cur.execute("select id from [Sub-Category Name] where ([Sub-Category], [Category_Name_id]) = (?, ?)", (transaction[3], cat_id))
+            subcat_id = cur.fetchone()[0]
+            cur.execute("select id from Accounts where [Account Name] = ?", (transaction[4], ))
+            account_id = cur.fetchone()[0]
+            cur.execute("update Transactions set Amount = ?, [Category_id] = ?, [Sub_Category_id] = ?, [Account_Type_id] = ?, Month = ? where id = ?", (transaction[-1], cat_id, subcat_id, account_id, transaction[5], transaction[0]))
+        elif modification == "deleted":
+            print("delete transaction")
+            cur.execute("delete from Transactions where id = ?", (transaction[0], ))
+        conn.commit()
+                
+    #update the transaction list when transactions added, edited, and deleted
+    def confirm_transaction_edits(self, button, called_by_manager=0):
+        if called_by_manager == 1: #addnew was pressed from editor window, skip updating of list window and call add_new_transaction
+            self.add_new_transaction()
+        if called_by_manager == 0 and button == "addnew": #addnew or edit was pressed from list window, update list window then call add_new_transaction
+            new_transaction_checkbox = ctk.CTkCheckBox(self.cell_transaction_list_frame, text=self.entry_var_amount.get() + " new", command=self.user_selects_transaction)
+            self.list_of_transaction_checkboxes.append(new_transaction_checkbox)
+            new_transaction_checkbox.grid(row=len(self.list_of_transaction_checkboxes), column=0, sticky="wn", pady=5, padx=5)
             self.checkbox_statuses.append(0)
-            transaction_checkbox.grid(row=0+index, column=0, sticky="wn", pady=5, padx=5)
-        #configure transaction list labels to display selected cell info
-        self.transactions_for_info.configure(text=self.selected_cell_info_list[0][1] + ", " + self.selected_cell_info_list[1][0] + ", " + self.selected_cell_info_list[2][0])
-        self.transactions_for_info_category.configure(text="Category: " + self.selected_cell_info_list[3][0])
-        self.transactions_for_info_subcategory.configure(text="Sub-Category: " + self.selected_cell_info_list[4][0])
-        
-        
-    def test_func(self):
-        print("test func") 
-       
-    def transaction_editor(self):
+            self.transactions_list.append([0, self.combo_var_incexp.get(), self.combo_var_cat.get(), self.combo_var_subcat.get(), self.combo_var_account.get(), self.combo_var_tab.get(), self.transaction_editor_amount])
+        if called_by_manager == 0 and button == "edit": #edit existing transactions
+            for index, status in enumerate(self.checkbox_statuses):
+                if status == 1:
+                    transaction_modified = False
+                    if self.transactions_list[index][1] != self.combo_var_incexp.get(): #inc/exp
+                        self.transactions_list[index][1] = self.combo_var_incexp.get()
+                        transaction_modified = True
+                    if self.transactions_list[index][2] != self.combo_var_cat.get(): #cat
+                        self.transactions_list[index][2] = self.combo_var_cat.get()
+                        transaction_modified = True
+                    if self.transactions_list[index][3] != self.combo_var_subcat.get(): #subcat
+                        self.transactions_list[index][3] = self.combo_var_subcat.get()
+                        transaction_modified = True
+                    if self.transactions_list[index][4] != self.combo_var_account.get(): #account
+                        self.transactions_list[index][4] = self.combo_var_account.get()
+                        transaction_modified = True
+                    # combo_var_tab is text, must be convertede back into corresponding number in transactions_list (so it can be output to DB)
+                    tab_num = [pair[0] for pair in enumerate(self.tab_list) if pair[1] == self.combo_var_tab.get()][0] 
+                    if self.transactions_list[index][5] != tab_num: #tab/month
+                        self.transactions_list[index][5] = tab_num
+                        transaction_modified = True
+                    if self.transactions_list[index][6] != self.transaction_editor_amount: #amount
+                        self.transactions_list[index][6] = self.transaction_editor_amount
+                        transaction_modified = True
+                    if transaction_modified == True:
+                        self.list_of_transaction_checkboxes[index].configure(text=self.entry_var_amount.get() + " modified")
+                    self.list_of_transaction_checkboxes[index].deselect()
+        if called_by_manager == 0 and button == "delete": #delete transactions
+            for index, selection in enumerate(self.checkbox_statuses):
+                if selection == 1:
+                    self.list_of_transaction_checkboxes[index].configure(text=(self.selected_transaction_amount.get() + " deleted"), state="disabled")
+                    self.list_of_transaction_checkboxes[index].deselect()
+        if called_by_manager == 0: #list window does nto exist
+            self.transaction_list_edit_button.configure(state="disabled")
+            self.transaction_list_delete_button.configure(state="disabled")
+            self.transaction_list_add_new_button.configure(state="normal") 
+        #reset selected transaction vars (prevents entry box being filled by last value deleted)
+        self.selected_transaction_amount = ctk.StringVar(value="")
+        self.selected_transaction_id = ctk.IntVar(value=0)
+        if button != "delete":
+            self.transaction_editor_window.destroy()
+
+    def transaction_editor(self, button, called_by_manager=0):
         self.transaction_editor_window = ctk.CTkToplevel()
         self.transaction_editor_window.title("Edit Transaction")
         self.transaction_editor_window.geometry("500x550")
@@ -1425,16 +1598,18 @@ class ManageBudget(ctk.CTkFrame):
         #variables
         #add/edit lists for tab and account, provinding dropdown menu options
         self.annual_month_text_list = self.tab_list[:-1]
-        self.budget_accounts_text_list = [self.budget_accounts[0][0], self.budget_accounts[1][0]]
+        self.budget_accounts_text_list = []
+        for account in self.budget_accounts:
+            self.budget_accounts_text_list.append(account[0])
         self.income_expense_text_list = []
         [self.income_expense_text_list.append(key) for key in self.budget_structure.keys()]
         
-        combo_var_tab = ctk.StringVar(value=self.selected_cell_info_list[0][1])
-        combo_var_account = ctk.StringVar(value=self.selected_cell_info_list[1][0])
+        self.combo_var_tab = ctk.StringVar(value=self.selected_cell_info_list[0][1])
+        self.combo_var_account = ctk.StringVar(value=self.selected_cell_info_list[1][0])
         self.combo_var_incexp = ctk.StringVar(value=self.selected_cell_info_list[2][0])
         self.combo_var_cat = ctk.StringVar(value=self.selected_cell_info_list[3][0])
         self.combo_var_subcat = ctk.StringVar(value=self.selected_cell_info_list[4][0])
-        combo_var_amount = self.selected_transaction_amount
+        self.entry_var_amount = self.selected_transaction_amount
     
        
         def set_dropdown_categories(incexp, defaults_set=1):
@@ -1443,7 +1618,6 @@ class ManageBudget(ctk.CTkFrame):
             if defaults_set == 1:
                 self.combo_var_cat = ctk.StringVar(value=self.category_text_list[0])
             self.category_dropdown.configure(values=self.category_text_list, variable=self.combo_var_cat)
-
             set_dropdown_subcategories(self.combo_var_cat.get(), defaults_set)
 
         def set_dropdown_subcategories(category, defaults_set=1):
@@ -1453,14 +1627,35 @@ class ManageBudget(ctk.CTkFrame):
             self.subcategory_dropdown.configure(values=self.subcategory_text_list, variable=self.combo_var_subcat)
             defaults_set = 1
 
+        def set_entry_bindings(event):
+            self.amount_entry.bind("<Return>", check_entry_is_number)
+            self.amount_entry_focused = True
+
+        def click_outside_amount_entry(event):
+            widget = self.winfo_containing(event.x, event.y)
+            if widget != self.amount_entry and self.amount_entry_focused == True:
+                self.amount_entry_focused = False
+                widget.focus_force()
+                check_entry_is_number(event)
+
+        def check_entry_is_number(event=""):
+            try:
+                self.transaction_editor_amount = round(float(self.entry_var_amount.get()), 2)
+                self.transaction_editor_confirm_button.configure(state="normal")
+            except ValueError:
+                self.transaction_editor_confirm_button.configure(state="disabled")
+                return "break"
+            if not event:
+                self.confirm_transaction_edits(button, called_by_manager)
+
         #widgets
         self.transaction_editor_title = ctk.CTkLabel(self.transaction_editor_window, text="Transaction Editor", text_color="#00aaff", font=('calibri', 24))
 
         self.transaction_form_frame = ctk.CTkFrame(self.transaction_editor_window)
         self.annual_month_label = ctk.CTkLabel(self.transaction_form_frame, text="Annual/Month", text_color="#00aaff", font=('calibri', 24))
-        self.annual_month_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=self.annual_month_text_list, variable=combo_var_tab)
+        self.annual_month_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=self.annual_month_text_list, variable=self.combo_var_tab)
         self.account_label = ctk.CTkLabel(self.transaction_form_frame, text="Account", text_color="#00aaff", font=('calibri', 24))
-        self.account_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=self.budget_accounts_text_list, variable=combo_var_account)
+        self.account_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=self.budget_accounts_text_list, variable=self.combo_var_account)
         self.income_expense_label = ctk.CTkLabel(self.transaction_form_frame, text="Income or Expense", text_color="#00aaff", font=('calibri', 24))
         self.income_expense_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=self.income_expense_text_list, variable=self.combo_var_incexp, command=set_dropdown_categories)
         self.category_label = ctk.CTkLabel(self.transaction_form_frame, text="Category", text_color="#00aaff", font=('calibri', 24))
@@ -1468,10 +1663,15 @@ class ManageBudget(ctk.CTkFrame):
         self.subcategory_label = ctk.CTkLabel(self.transaction_form_frame, text="Subcategory", text_color="#00aaff", font=('calibri', 24))
         self.subcategory_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=[], variable=self.combo_var_subcat)
         self.amount_label = ctk.CTkLabel(self.transaction_form_frame, text="Amount", text_color="#00aaff", font=('calibri', 24))
-        self.amount_entry = ctk.CTkEntry(self.transaction_form_frame, width=250, textvariable=combo_var_amount)
+        self.amount_entry = ctk.CTkEntry(self.transaction_form_frame, width=250, textvariable=self.entry_var_amount)
+
+        self.amount_entry.bind("<FocusIn>", set_entry_bindings)
+        self.transaction_form_frame.bind("<Button-1>", click_outside_amount_entry)
+
+        self.amount_entry_focused = False
 
         self.transaction_editor_cancel_button = ctk.CTkButton(self.transaction_editor_window, text="Cancel", fg_color="#00aaff", font=('calibri', 24), command=self.transaction_editor_window.destroy)
-        self.transaction_editor_confirm_button = ctk.CTkButton(self.transaction_editor_window, text="Confirm", fg_color="#00aaff", font=('calibri', 24), command=self.test_func)
+        self.transaction_editor_confirm_button = ctk.CTkButton(self.transaction_editor_window, text="Confirm", fg_color="#00aaff", font=('calibri', 24), command=check_entry_is_number)
 
         #layout
         self.transaction_editor_title.grid(row=0, column=0, columnspan=2, sticky="n")
@@ -1494,17 +1694,15 @@ class ManageBudget(ctk.CTkFrame):
         self.transaction_editor_confirm_button.grid(row=2, column=1, sticky="e", padx=10, pady=(0,5))
 
         #if no transaction selected, set dropdowns to disabled (user cannot change their values)
-        if self.checkbox_statuses == [] or 1 not in self.checkbox_statuses: #add new button was pressed
+        if button == "addnew":
             self.annual_month_dropdown.configure(state="disabled")
             self.account_dropdown.configure(state="disabled")
             self.income_expense_dropdown.configure(state="disabled")
             self.category_dropdown.configure(state="disabled")
             self.subcategory_dropdown.configure(state="disabled")
-        else: #edit button was pressed, display current amount
-            print("edit button was pressed") #this seems to ID when edit button was pressed
+        #otherwise, edit button was pressed, default = enable state
 
         #set default available categories and subcategories in dropdowns  
-        #do this with function call that feeds in the vars with 'combo_var's.get()
         set_dropdown_categories(self.combo_var_incexp.get(), defaults_set=0)
 
     def clear_manage_budget_table(self):
