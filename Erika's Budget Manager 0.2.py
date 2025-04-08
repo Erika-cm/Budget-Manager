@@ -1184,9 +1184,14 @@ class ManageBudget(ctk.CTkFrame):
             for cat in self.treeview_list[0].get_children(incexp):
                 cat_text = self.treeview_list[0].item(cat).get("values")[0]
                 subcat_list = []
+                subcat_annual_monthly = []
                 for subcat in self.treeview_list[0].get_children(cat):
                     subcat_list.append(self.treeview_list[0].item(subcat).get("values")[0])
-                cat_subcat_dict[cat_text] = subcat_list
+                    if self.treeview_list[0].item(subcat).get("values")[2] == "": #annual
+                        subcat_annual_monthly.append(2)
+                    else:
+                        subcat_annual_monthly.append(1)
+                cat_subcat_dict[cat_text] = [subcat_list, subcat_annual_monthly]
             self.budget_structure[incexp_text] = cat_subcat_dict
             
         self.load_transaction_data_from_db(self.treeview_list)      
@@ -1502,9 +1507,10 @@ class ManageBudget(ctk.CTkFrame):
         if len(self.budget_accounts) > 1:
             row_total = 0
             for col in self.selected_row[2:-1]:
-                if col == "":
-                    col = 0
-                row_total += float(col)
+                try:
+                    row_total += float(col)
+                except ValueError:
+                    row_total += 0 
             self.selected_row[-1] = row_total
         self.treeview_list[self.current_tab].item(self.selected_row_item, values=self.selected_row)
         self.transaction_list_window.destroy()
@@ -1519,16 +1525,18 @@ class ManageBudget(ctk.CTkFrame):
             transacation_account_id = self.selected_cell_info_list[1][1]
             cur.execute("insert into Transactions (Amount, [Category_id], [Sub_Category_id], [Account_Type_id], Month) Values (?, ?, ?, ?, ?)", (transaction[-1], transacation_cat_id, transacation_subcat_id, transacation_account_id, transaction[5]))
         elif modification == "modified":
-            print("update transaction") 
+            print(transaction)
             cur.execute("select id from [Category Name] where Category = ?", (transaction[2], ))
             cat_id = cur.fetchone()[0]
+            print(cat_id)
             cur.execute("select id from [Sub-Category Name] where ([Sub-Category], [Category_Name_id]) = (?, ?)", (transaction[3], cat_id))
             subcat_id = cur.fetchone()[0]
+            print(subcat_id)
             cur.execute("select id from Accounts where [Account Name] = ?", (transaction[4], ))
             account_id = cur.fetchone()[0]
+            print(account_id)
             cur.execute("update Transactions set Amount = ?, [Category_id] = ?, [Sub_Category_id] = ?, [Account_Type_id] = ?, Month = ? where id = ?", (transaction[-1], cat_id, subcat_id, account_id, transaction[5], transaction[0]))
         elif modification == "deleted":
-            print("delete transaction")
             cur.execute("delete from Transactions where id = ?", (transaction[0], ))
         conn.commit()
                 
@@ -1610,22 +1618,42 @@ class ManageBudget(ctk.CTkFrame):
         self.combo_var_cat = ctk.StringVar(value=self.selected_cell_info_list[3][0])
         self.combo_var_subcat = ctk.StringVar(value=self.selected_cell_info_list[4][0])
         self.entry_var_amount = self.selected_transaction_amount
-    
-       
-        def set_dropdown_categories(incexp, defaults_set=1):
+            
+        def set_dropdown_categories(incexp, defaults_set=1): 
             self.category_text_list = []
             [self.category_text_list.append(cat) for cat in self.budget_structure[incexp].keys()]
             if defaults_set == 1:
                 self.combo_var_cat = ctk.StringVar(value=self.category_text_list[0])
             self.category_dropdown.configure(values=self.category_text_list, variable=self.combo_var_cat)
             set_dropdown_subcategories(self.combo_var_cat.get(), defaults_set)
-
-        def set_dropdown_subcategories(category, defaults_set=1):
-            self.subcategory_text_list = self.budget_structure[self.combo_var_incexp.get()][category]
+        
+        def set_dropdown_subcategories(category, defaults_set=1): 
+            self.subcategory_text_list = []
+            if self.combo_var_tab.get() == "Annual": #dropdown=annual
+                self.annual_monthly = 2
+            if self.combo_var_tab.get() != "Annual": #dropdown=monthly
+                self.annual_monthly = 1
+            for index, subcat in enumerate(self.budget_structure[self.combo_var_incexp.get()][category][0]):
+                if self.budget_structure[self.combo_var_incexp.get()][category][1][index] == self.annual_monthly:
+                    self.subcategory_text_list.append(subcat)
             if defaults_set == 1:
-                self.combo_var_subcat = ctk.StringVar(value=self.subcategory_text_list[0])
+                if len(self.subcategory_text_list) == 0: #user selected a cat with no subcats (likely lacking annuals)
+                    self.combo_var_subcat = ctk.StringVar(value="")
+                    self.transaction_editor_confirm_button.configure(state="disabled")
+                else:
+                    self.combo_var_subcat = ctk.StringVar(value=self.subcategory_text_list[0])
+                    self.transaction_editor_confirm_button.configure(state="normal")
             self.subcategory_dropdown.configure(values=self.subcategory_text_list, variable=self.combo_var_subcat)
             defaults_set = 1
+        
+        def user_selects_annual_or_month(annual):
+            if annual != "Annual" and self.annual_monthly == 2: #switching from annual to month
+                defaults_set = 1
+            elif annual == "Annual" and self.annual_monthly == 1: #switching from month to annual
+                defaults_set = 1
+            else: #switching from month to month
+                defaults_set = 0
+            set_dropdown_categories(self.combo_var_incexp.get(), defaults_set)
 
         def set_entry_bindings(event):
             self.amount_entry.bind("<Return>", check_entry_is_number)
@@ -1653,7 +1681,7 @@ class ManageBudget(ctk.CTkFrame):
 
         self.transaction_form_frame = ctk.CTkFrame(self.transaction_editor_window)
         self.annual_month_label = ctk.CTkLabel(self.transaction_form_frame, text="Annual/Month", text_color="#00aaff", font=('calibri', 24))
-        self.annual_month_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=self.annual_month_text_list, variable=self.combo_var_tab)
+        self.annual_month_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=self.annual_month_text_list, variable=self.combo_var_tab, command=user_selects_annual_or_month)
         self.account_label = ctk.CTkLabel(self.transaction_form_frame, text="Account", text_color="#00aaff", font=('calibri', 24))
         self.account_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=self.budget_accounts_text_list, variable=self.combo_var_account)
         self.income_expense_label = ctk.CTkLabel(self.transaction_form_frame, text="Income or Expense", text_color="#00aaff", font=('calibri', 24))
@@ -1700,7 +1728,7 @@ class ManageBudget(ctk.CTkFrame):
             self.income_expense_dropdown.configure(state="disabled")
             self.category_dropdown.configure(state="disabled")
             self.subcategory_dropdown.configure(state="disabled")
-        #otherwise, edit button was pressed, default = enable state
+        #otherwise, edit button was pressed, default = enabled state
 
         #set default available categories and subcategories in dropdowns  
         set_dropdown_categories(self.combo_var_incexp.get(), defaults_set=0)
