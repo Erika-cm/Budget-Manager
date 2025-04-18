@@ -24,13 +24,13 @@ class MainWindow(ctk.CTk):
         self.button_panel.grid_columnconfigure((0,1,2,3), weight=1)
         self.button_panel.grid_rowconfigure(0, weight=1)
         #buttons
-        button_continue = ctk.CTkButton(self.button_panel, text="Continue", fg_color="#00aaff", font=('calibri', 35), command=self.createnew_or_managebudget_pressed_continue)
-        button_back = ctk.CTkButton(self.button_panel, text="Back", fg_color="#00aaff", font=('calibri', 35), command=self.createnew_or_managebudget_pressed_back)
+        self.button_continue = ctk.CTkButton(self.button_panel, text="Continue", fg_color="#00aaff", font=('calibri', 35), command=self.createnew_or_managebudget_pressed_continue)
+        self.button_back = ctk.CTkButton(self.button_panel, text="Back", fg_color="#00aaff", font=('calibri', 35), command=self.createnew_or_managebudget_pressed_back)
         self.add_new_transaction_button = ctk.CTkButton(self.button_panel, text="Add New Transaction", fg_color="#00aaff", font=('calibri', 35), state="disabled")
         self.edit_transactions_button = ctk.CTkButton(self.button_panel, text="Edit Transactions", fg_color="#00aaff", font=('calibri', 35), state="disabled")
         # button panel layout
-        button_continue.grid(row=0, column=3, sticky="ne", pady=10, padx=10) 
-        button_back.grid(row=0, column=0, sticky="nw", pady=10, padx=10)
+        self.button_continue.grid(row=0, column=3, sticky="ne", pady=10, padx=10) 
+        self.button_back.grid(row=0, column=0, sticky="nw", pady=10, padx=10)
 
         #pages: manage budget
         self.manage_budget_p1 = RadioButtonMenu(self, "Open Existing Budget")
@@ -120,10 +120,11 @@ class MainWindow(ctk.CTk):
         if self.current_page_manage_budget > 0:
             if self.current_page_manage_budget == 1: #current page 2 (going back to 1)
                 self.manage_budget_p2.clear_manage_budget_table()
-                self.add_new_transaction_button.grid_forget()
+            self.add_new_transaction_button.grid_forget()
             self.edit_transactions_button.grid_forget()
             self.manage_budget_pages[self.current_page_manage_budget - 1].tkraise()
-            self.current_page_manage_budget-=1    
+            self.current_page_manage_budget-=1   
+            self.button_continue.configure(text="Continue") 
         else:
             self.main_menu.tkraise()
     
@@ -131,14 +132,21 @@ class MainWindow(ctk.CTk):
         if self.current_page_manage_budget == 0: #current page:1 (going to 2)
             self.manage_budget_p2.display_budget_management_table(self.manage_budget_p1.budget_filename) #This passes the selected budget file to the budget management table
             self.manage_budget_p2.set_treeview_style_managebudget_table()
+            self.button_continue.configure(text="Main Menu")
             self.add_new_transaction_button.grid(row=0, column=1, sticky="nw", pady=10, padx=10)
             self.edit_transactions_button.grid(row=0, column=2, sticky="ne", pady=10, padx=10)
-        if self.current_page_manage_budget < len(self.manage_budget_pages) - 1:
+        elif self.current_page_manage_budget == 1: #current page: 2 (returning to main)
+            self.manage_budget_p2.clear_manage_budget_table()
+            self.add_new_transaction_button.grid_forget()
+            self.edit_transactions_button.grid_forget()
+            self.button_continue.configure(text="Continue") 
+            self.main_menu.tkraise()
+        if self.current_page_manage_budget < len(self.manage_budget_pages) - 1: #not at end of pages
             self.manage_budget_pages[self.current_page_manage_budget + 1].tkraise()
             self.current_page_manage_budget += 1
-        else:
-            print("you are at end of this process, for now")
-            self.manage_budget_p2.continue_test()
+        else: #on last page (return to main and reset page counter)
+            self.current_page_manage_budget = 0
+            
     
     def transaction_list_window(self):
         self.manage_budget_p2.selected_cell_transaction_list()
@@ -1768,9 +1776,6 @@ class ManageBudget(ctk.CTkFrame):
             for table in self.treeview_list:
                 table.destroy()
             self.budget_displayed_in_manager = 0
-
-    def continue_test(self):
-        print("empty continue function")
 
 class SaveWindow(ctk.CTkToplevel):
     def __init__(self, parent, save_object_type, save_object_title, save_object=None, new_template=None): #when expanding this class for saving of DB, confirm required vs optional arguments
