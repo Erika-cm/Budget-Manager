@@ -13,6 +13,11 @@ class MainWindow(ctk.CTk):
         #self.window_size = windowsize use this to set widget sizes relative to window size if needed
         self.geometry(f'{windowsize[0]}x{windowsize[1]}')
 
+        self.update()
+        self.scaling_factor = self.winfo_width() / windowsize[0]
+        
+        #next: make scaling_factor accessable from enter_budget_amounts
+        #then implement adjustment of bounding box based on scaling
         #widgets
         #button panel for create new budget process
         self.button_panel = ctk.CTkFrame(self, bg_color="#3b3b3b")
@@ -39,7 +44,7 @@ class MainWindow(ctk.CTk):
         self.main_menu.configure(fg_color="transparent")     
 
         #final create new budget page (has to come after main menu so that mainmenu is raisable from that page)(same for final manage budget page)
-        self.create_new_p3 = EnterBudgetAmounts(self, self.main_menu)
+        self.create_new_p3 = EnterBudgetAmounts(self, self.main_menu, self.scaling_factor)
         self.manage_budget_p2 = ManageBudget(self, self.main_menu, self.add_new_transaction_button, self.edit_transactions_button)
 
         #set commands for transaction buttons in manage_budget_p2
@@ -71,7 +76,7 @@ class MainWindow(ctk.CTk):
         
         self.main_menu.tkraise() #main menu shows up at launch
         self.mainloop()
-    
+
     #two functions to check if user pressed create new or manage existing budget
     def createnew_or_managebudget_pressed_back(self):
         if self.main_menu.createnew_or_manage == "create new":
@@ -141,7 +146,6 @@ class MainWindow(ctk.CTk):
     def transaction_editor_window(self):
         self.manage_budget_p2.get_selected_cell_info(called_by_manager=1)
             
-
 #a frame that holds the main menu (title, buttons(3), version note)
 class MainMenu(ctk.CTkFrame):
     def __init__(self, parent, create_new_frame, create_new_button_panel_frame, manage_budget_frame):
@@ -158,7 +162,7 @@ class MainMenu(ctk.CTkFrame):
         self.manage_budget_p1 = manage_budget_frame
 
         #widgets 1 label,3 buttons, another label
-        self.main_menu_label = ctk.CTkLabel(self, text="Erika's Budget Manager", text_color="#00aaff", font=('calibri', 65))
+        self.main_menu_label = ctk.CTkLabel(self, text="Manage Your Money", text_color="#00aaff", font=('calibri', 65))
         
         self.create_new_button = ctk.CTkButton(self, text="Create a New Budget", fg_color="#00aaff", font=('calibri', 40), command = self.create_new)
         self.open_existing_button = ctk.CTkButton(self, text="Manage an Existing Budget", fg_color="#00aaff", font=('calibri', 40), command = self.manage_budget)
@@ -270,7 +274,7 @@ class EditBudgetTemplate(ctk.CTkFrame):
         #keep track of text box focus
         self.category_text_box_focus = 0
 
-        def return_pressed_in_category_text_box(*args):
+        def return_pressed_in_category_text_box(event=""):
             if self.category_text_box.get("1.0", "end-1c") == "":
                 self.category_text_box.delete("0.0", "end")
                 self.category_text_box.mark_set("insert", "0.0")
@@ -300,7 +304,7 @@ class EditBudgetTemplate(ctk.CTkFrame):
         self.category_label = ctk.CTkLabel(self.context_category, text="Category Selected", text_color='#ffffff')
         self.category_text_box_in_category_menu = ctk.CTkTextbox(self.context_category, height=50)
 
-        def rename_category(*args):
+        def rename_category(event=""):
             self.template_editor.item(self.template_editor.focus(), text=self.category_text_box_in_category_menu.get("1.0", "end-1c"))
             return 'break'
         
@@ -319,22 +323,27 @@ class EditBudgetTemplate(ctk.CTkFrame):
 
         self.rename_category_button = ctk.CTkButton(self.context_category, text="Rename", fg_color="#00aaff", font=('calibri', 18), command=rename_category)
        
-        def move_category_up(*args):
+        def move_category_up():
             current_category_pos = self.template_editor.index(self.template_editor.focus())
             self.template_editor.move(self.template_editor.focus(), self.template_editor.parent(self.template_editor.focus()), current_category_pos-1)
 
-        def move_category_down(*args):
+        def move_category_down():
             current_category_pos = self.template_editor.index(self.template_editor.focus())
             self.template_editor.move(self.template_editor.focus(), self.template_editor.parent(self.template_editor.focus()), current_category_pos+1)
 
         self.moveup_category_button = ctk.CTkButton(self.context_category, text="Move Up", fg_color="#00aaff", font=('calibri', 18), command=move_category_up)
         self.movedown_category_button = ctk.CTkButton(self.context_category, text="Move Down", fg_color="#00aaff", font=('calibri', 18), command=move_category_down)
         
+        def delete_selected_category():
+            self.template_editor.delete(self.template_editor.focus())
+
+        self.delete_category_button = ctk.CTkButton(self.context_category, text="Delete Category", fg_color="#00aaff", font=('calibri', 18), command=delete_selected_category)
+
         self.subcategory_text_box_in_category_menu = ctk.CTkTextbox(self.context_category, height=50)
         #keep track of text box focus
         self.subcategory_text_box_in_category_menu_focus = 0
 
-        def return_pressed_in_category_menu_subcategory_text_box(*args):
+        def return_pressed_in_category_menu_subcategory_text_box(event=""):
             if self.subcategory_text_box_in_category_menu.get("1.0", "end-1c") == "":
                 self.subcategory_text_box_in_category_menu.delete("0.0", "end")
                 self.subcategory_text_box_in_category_menu.mark_set("insert", "0.0")
@@ -365,7 +374,7 @@ class EditBudgetTemplate(ctk.CTkFrame):
         self.subcategory_label = ctk.CTkLabel(self.context_subcategory, text="Sub-category Selected", text_color='#ffffff')
         self.subcategory_textbox = ctk.CTkTextbox(self.context_subcategory, height=50)
 
-        def rename_subcategory(*args):
+        def rename_subcategory(event=""):
             self.template_editor.item(self.template_editor.focus(), text=self.subcategory_textbox.get("1.0", "end-1c"))
             return 'break'
         
@@ -384,19 +393,24 @@ class EditBudgetTemplate(ctk.CTkFrame):
 
         self.rename_subcategory_button = ctk.CTkButton(self.context_subcategory, text="Rename", fg_color="#00aaff", font=('calibri', 18), command=rename_subcategory)
 
-        def move_subcategory_up(*args):
+        def move_subcategory_up():
             current_subcategory_pos = self.template_editor.index(self.template_editor.focus())
             self.template_editor.move(self.template_editor.focus(), self.template_editor.parent(self.template_editor.focus()), current_subcategory_pos-1)
 
-        def move_subcategory_down(*args):
+        def move_subcategory_down():
             current_subcategory_pos = self.template_editor.index(self.template_editor.focus())
             self.template_editor.move(self.template_editor.focus(), self.template_editor.parent(self.template_editor.focus()), current_subcategory_pos+1)
 
         self.moveup_subcategory_button = ctk.CTkButton(self.context_subcategory, text="Move Up", fg_color="#00aaff", font=('calibri', 18), command=move_subcategory_up)
         self.movedown_subcategory_button = ctk.CTkButton(self.context_subcategory, text="Move Down", fg_color="#00aaff", font=('calibri', 18), command=move_subcategory_down)
         
+        def delete_selected_subcategory():
+            self.template_editor.delete(self.template_editor.focus())
+
+        self.delete_subcategory_button = ctk.CTkButton(self.context_subcategory, text="Delete Sub-category", fg_color="#00aaff", font=('calibri', 18), command=delete_selected_subcategory)
+
         self.monthly_annual = ctk.IntVar()
-        def monthly_annual_checkbox_status(*args):
+        def monthly_annual_checkbox_status():
             self.template_editor.item(self.template_editor.focus(), values=self.monthly_annual.get())
 
         self.subcategory_annual_checkbox= ctk.CTkCheckBox(self.context_subcategory, text="Annual", fg_color="#00aaff", font=('calibri', 18), onvalue=2, offvalue=1, variable=self.monthly_annual, command=monthly_annual_checkbox_status)
@@ -407,12 +421,12 @@ class EditBudgetTemplate(ctk.CTkFrame):
         #save button
         self.save_button_frame = ctk.CTkFrame(self)
 
-        def save_template(*args):  #do we want to refactor this?
+        def save_template():  
             new_template = {"Title" : "temporary title"}
-            for child in self.template_editor.get_children():
-                new_template[self.template_editor.item(child).get("text")] = "categories"
+            for incexp in self.template_editor.get_children():
+                new_template[self.template_editor.item(incexp).get("text")] = "categories"
                 category = {}
-                for cat in self.template_editor.get_children(item=child):
+                for cat in self.template_editor.get_children(item=incexp):
                     category[self.template_editor.item(cat).get("text")] = "list of lists"
                     subcategories_and_annual = []
                     subcategories = []
@@ -423,7 +437,7 @@ class EditBudgetTemplate(ctk.CTkFrame):
                     subcategories_and_annual.append(subcategories)
                     subcategories_and_annual.append(annual)
                     category[self.template_editor.item(cat).get("text")] = subcategories_and_annual
-                new_template[self.template_editor.item(child).get("text")] = category 
+                new_template[self.template_editor.item(incexp).get("text")] = category 
             save_template_window=SaveWindow(self, save_object_type="Save Template", save_object_title=self.template_title, save_object=self.template_list, new_template=new_template)
             save_template_window.focus()
             save_template_window.grab_set()
@@ -452,6 +466,7 @@ class EditBudgetTemplate(ctk.CTkFrame):
         self.rename_category_button.pack(padx=10, pady=5)
         self.moveup_category_button.pack(padx=10, pady=5)
         self.movedown_category_button.pack(padx=10, pady=5)
+        self.delete_category_button.pack(padx=10, pady=5)
         self.subcategory_text_box_in_category_menu.pack(padx=10, pady=5)
         self.add_subcategory_button.pack(padx=10, pady=5)
         #sub-category selected
@@ -461,6 +476,7 @@ class EditBudgetTemplate(ctk.CTkFrame):
         self.rename_subcategory_button.pack(padx=10, pady=5)
         self.moveup_subcategory_button.pack(padx=10, pady=5)
         self.movedown_subcategory_button.pack(padx=10, pady=5)
+        self.delete_subcategory_button.pack(padx=10, pady=5)
         self.subcategory_annual_checkbox.pack(padx=10, pady=5)
         #intro message
         self.context_intro_message.place(relx=0.74, rely=0.2, relwidth=0.18, relheight=0.70, anchor='nw')
@@ -538,7 +554,7 @@ class EditBudgetTemplate(ctk.CTkFrame):
             self.template_displayed = 0  
 
 class EnterBudgetAmounts(ctk.CTkFrame):
-    def __init__(self, parent, main_menu_frame):
+    def __init__(self, parent, main_menu_frame, scaling_factor):
         super().__init__(master=parent)
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)    
@@ -562,12 +578,18 @@ class EnterBudgetAmounts(ctk.CTkFrame):
 
         def budget_table_double_click(event):
             if self.budget_table.item(self.budget_table.parent(self.budget_table.parent(self.budget_table.focus()))).get("values") == "":
-                print("Non-sub-category") 
+                return "break" #Do nothing, user selected non-selectable cell (not a subcategory)
             if self.budget_table.item(self.budget_table.parent(self.budget_table.parent(self.budget_table.focus()))).get("values") != "": 
                 self.row = self.budget_table.identify_row(event.y)
                 self.row_data = self.budget_table.item(self.row).get("values")
                 if self.budget_table.item(self.row).get("values")[3] == 2: #annual subcat clicked 
                     box_location_annual = self.budget_table.bbox(self.row, column="#2")
+                    box_location_annual = (
+                        int(box_location_annual[0] / scaling_factor),
+                        int(box_location_annual[1] / scaling_factor),
+                        int(box_location_annual[2] / scaling_factor),
+                        int(box_location_annual[3] / scaling_factor)
+                    )
                     self.annual = True
                     self.budget_entry = ctk.CTkEntry(self.budget_table, width=box_location_annual[2], height=box_location_annual[3])
                     self.budget_entry.place(x=box_location_annual[0], y=box_location_annual[1])
@@ -576,6 +598,12 @@ class EnterBudgetAmounts(ctk.CTkFrame):
                     self.budget_entry.bind("<FocusOut>", update_budget_table_entry)
                 if self.budget_table.item(self.row).get("values")[3] == 1: #monthly subcat clicked
                     box_location_monthly = self.budget_table.bbox(self.row, column="#3")
+                    box_location_monthly = (
+                        int(box_location_monthly[0] / scaling_factor),
+                        int(box_location_monthly[1] / scaling_factor),
+                        int(box_location_monthly[2] / scaling_factor),
+                        int(box_location_monthly[3] / scaling_factor)
+                    )
                     self.annual = False
                     self.budget_entry = ctk.CTkEntry(self.budget_table, width=box_location_monthly[2], height=box_location_monthly[3])
                     self.budget_entry.place(x=box_location_monthly[0], y=box_location_monthly[1])
@@ -584,19 +612,21 @@ class EnterBudgetAmounts(ctk.CTkFrame):
                     self.budget_entry.bind("<FocusOut>", update_budget_table_entry)
             return "break"
 
-        def update_budget_table_entry(*args):
+        def update_budget_table_entry(event):
             if self.annual == True:
                 try:
                     self.row_data[1] = '${:,.2f}'.format(float(self.budget_entry.get())) 
                     self.budget_table.item(self.row, values=self.row_data)
                 except ValueError:
-                    print("value error")
-            if self.annual == False:
+                    self.budget_entry.destroy() #either box was empyty or user entered non-number
+                    return
+            elif self.annual == False:
                 try:
                     self.row_data[2] = '${:,.2f}'.format(float(self.budget_entry.get()))
                     self.budget_table.item(self.row, values=self.row_data)
                 except ValueError:
-                    print('value error')
+                    self.budget_entry.destroy()
+                    return
             self.budget_entry.destroy()
             
         self.budget_table.bind("<Double-1>", budget_table_double_click)
@@ -1836,3 +1866,4 @@ default_budget_template = {
                         }
 
 main_window = MainWindow("Erika's Budget Manager", (1000, 600))
+
