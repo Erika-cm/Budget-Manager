@@ -754,5 +754,132 @@
                 ]
             ]
         }
+    },
+    {
+        "Title": "Default exe test",
+        "Income": {
+            "All Income": [
+                [
+                    "Employment",
+                    "Rent",
+                    "Investments",
+                    "Other"
+                ],
+                [
+                    1,
+                    2,
+                    1,
+                    1
+                ]
+            ]
+        },
+        "Expenses": {
+            "Housing": [
+                [
+                    "Rent",
+                    "Utilities",
+                    "Phone",
+                    "Internet",
+                    "TV/Streaming Services",
+                    "Maintenance",
+                    "Home Insurance",
+                    "Other"
+                ],
+                [
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    2,
+                    1
+                ]
+            ],
+            "Common Living Expenses": [
+                [
+                    "Groceries",
+                    "Delivery/Take Out",
+                    "Coffee/Treats",
+                    "Hygeine and Personal Grooming",
+                    "Appliances",
+                    "Computer Parts",
+                    "Entertainment",
+                    "Hobbies and Skill Development",
+                    "Bank/Credit Card Fees",
+                    "Taxes",
+                    "Other"
+                ],
+                [
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    2,
+                    1
+                ]
+            ],
+            "Transportation": [
+                [
+                    "Transit Pass",
+                    "Car Share Services",
+                    "Fuel",
+                    "Insurance",
+                    "Maintenance",
+                    "Parking"
+                ],
+                [
+                    1,
+                    1,
+                    1,
+                    2,
+                    1,
+                    1
+                ]
+            ],
+            "Clothing": [
+                [
+                    "Everyday Use",
+                    "Special Occasion",
+                    "Other"
+                ],
+                [
+                    1,
+                    1,
+                    1
+                ]
+            ],
+            "Medical": [
+                [
+                    "Insurance (life)",
+                    "Insurance (Medical)",
+                    "Prescription Drugs",
+                    "Over the Counter Drugs",
+                    "Medical Services",
+                    "Paramedical Services",
+                    "Dental",
+                    "Vision Care",
+                    "Skin Care",
+                    "Other"
+                ],
+                [
+                    2,
+                    2,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1
+                ]
+            ]
+        }
     }
 ]
