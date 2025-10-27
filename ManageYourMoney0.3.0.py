@@ -6,76 +6,48 @@ import json
 import os
 import sys
 
+from Logic import AppLogic
+from Visuals import MainMenu, NavigationPanel, Comp1pg1, Comp1pg2, Comp2pg1, Comp2pg2
+
 # A class for main app window
 class MainWindow(ctk.CTk):
     def __init__(self, title, windowsize):
         super().__init__()
+        
+        #App window chars
         self.title(title)
         #self.window_size = windowsize use this to set widget sizes relative to window size if needed
         self.geometry(f'{windowsize[0]}x{windowsize[1]}')
 
-        self.update()
-        self.scaling_factor = self.winfo_width() / windowsize[0]
+        #enable adjustment of bounding box for systems that apply UI scaling (fixes Bbox appearing in wrong spot)
+        # self.update()
+        # self.scaling_factor = self.winfo_width() / windowsize[0]
         
-        #next: make scaling_factor accessable from enter_budget_amounts
-        #then implement adjustment of bounding box based on scaling
         #widgets
-        #button panel for create new budget process
-        self.button_panel = ctk.CTkFrame(self, bg_color="#3b3b3b")
-        self.button_panel.grid_columnconfigure((0,1,2,3), weight=1)
-        self.button_panel.grid_rowconfigure(0, weight=1)
-        #buttons
-        self.button_continue = ctk.CTkButton(self.button_panel, text="Continue", fg_color="#00aaff", font=('calibri', 35), command=self.createnew_or_managebudget_pressed_continue)
-        self.button_back = ctk.CTkButton(self.button_panel, text="Back", fg_color="#00aaff", font=('calibri', 35), command=self.createnew_or_managebudget_pressed_back)
-        self.add_new_transaction_button = ctk.CTkButton(self.button_panel, text="Add New Transaction", fg_color="#00aaff", font=('calibri', 35), state="disabled")
-        self.edit_transactions_button = ctk.CTkButton(self.button_panel, text="Edit Transactions", fg_color="#00aaff", font=('calibri', 35), state="disabled")
-        # button panel layout
-        self.button_continue.grid(row=0, column=3, sticky="ne", pady=10, padx=10) 
-        self.button_back.grid(row=0, column=0, sticky="nw", pady=10, padx=10)
+        self.app_logic = AppLogic(self)
 
-        #pages: manage budget
-        self.manage_budget_p1 = RadioButtonMenu(self, "Open Existing Budget")
-         
-        #pages: create a new budget
-        self.create_new_p1 = RadioButtonMenu(self, "Choose a Budget Template")
-        self.create_new_p2 = EditBudgetTemplate(self) 
+        #widgets (program components)
+        self.navigation_panel = NavigationPanel(self, self.app_logic)
+        #testing
+        self.main_menu = MainMenu(self, self.app_logic)
+        self.comp1_1 = Comp1pg1(self, "System1", self.app_logic)
+        self.comp1_2 = Comp1pg2(self, "System1", self.app_logic)
+        self.comp2_1 = Comp2pg1(self, "System2", self.app_logic)
+        self.comp2_2 = Comp2pg2(self, "System2", self.app_logic)
 
-        #main menu
-        self.main_menu = MainMenu(self, self.create_new_p1, self.button_panel, self.manage_budget_p1) #need to pass any pages that are accessed by the button on main menu directly (so just the 1st)
-        self.main_menu.configure(fg_color="transparent")     
-
-        #final create new budget page (has to come after main menu so that mainmenu is raisable from that page)(same for final manage budget page)
-        self.create_new_p3 = EnterBudgetAmounts(self, self.main_menu, self.scaling_factor)
-        self.manage_budget_p2 = ManageBudget(self, self.main_menu, self.add_new_transaction_button, self.edit_transactions_button)
-
-        #set commands for transaction buttons in manage_budget_p2
-        self.add_new_transaction_button.configure(command=self.transaction_editor_window)
-        self.edit_transactions_button.configure(command=self.transaction_list_window)
-        
         #layout
+        self.navigation_panel.place(relx=0.5, rely=1, relwidth=1, relheight=0.1, anchor='s')
+
         self.main_menu.place(relx=0.5, rely=0, relwidth=1, relheight=1, anchor='n')
-        
-        self.create_new_p1.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
-        self.create_new_p2.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
-        self.create_new_p3.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
+        self.comp1_1.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
+        self.comp1_2.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
+        self.comp2_1.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
+        self.comp2_2.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
 
-        self.manage_budget_p1.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
-        self.manage_budget_p2.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
-
-        self.button_panel.place(relx=0.5, rely=1, relwidth=1, relheight=0.1, anchor='s')
-
-        #other variables 
-        #list that tracks pages for button_panel    
-        self.create_new_pages = [self.create_new_p1, self.create_new_p2, self.create_new_p3]
-        self.current_page_createnew = 0
-
-        #list that tracks pages for button_panel
-        self.manage_budget_pages = [self.manage_budget_p1, self.manage_budget_p2]
-        self.current_page_manage_budget = 0
+        self.main_menu.tkraise()
+        self.app_logic.give_logic_program_system_access(self.navigation_panel, self.main_menu)
 
         #NOTE directory where user files will be saved may go here
-        
-        self.main_menu.tkraise() #main menu shows up at launch
 
         #icon file needs .exe or .py directory
         try:
@@ -88,7 +60,7 @@ class MainWindow(ctk.CTk):
         self.mainloop()
 
     #two functions to check if user pressed create new or manage existing budget
-    def createnew_or_managebudget_pressed_back(self):
+    '''def createnew_or_managebudget_pressed_back(self):
         if self.main_menu.createnew_or_manage == "create new":
             self.back_button_createnew()
         if self.main_menu.createnew_or_manage == "manage budget":
@@ -155,64 +127,15 @@ class MainWindow(ctk.CTk):
             self.manage_budget_pages[self.current_page_manage_budget + 1].tkraise()
             self.current_page_manage_budget += 1
         else: #on last page (return to main and reset page counter)
-            self.current_page_manage_budget = 0
+            self.current_page_manage_budget = 0'''
             
     
-    def transaction_list_window(self):
+    '''def transaction_list_window(self):
         self.manage_budget_p2.selected_cell_transaction_list()
     
     def transaction_editor_window(self):
-        self.manage_budget_p2.get_selected_cell_info(called_by_manager=1)
-            
-#a frame that holds the main menu (title, buttons(3), version note)
-class MainMenu(ctk.CTkFrame):
-    def __init__(self, parent, create_new_frame, create_new_button_panel_frame, manage_budget_frame):
-        super().__init__(master=parent)
-        self.grid_columnconfigure((0,2), weight=(1), uniform='a')
-        self.grid_columnconfigure((1), weight=(4), uniform='a')
-        self.grid_rowconfigure((0), weight=2)
-        self.grid_rowconfigure((1,2,3), weight=1)
-        self.grid_rowconfigure((4), weight=0)
-        
-        #pass each frame/page/variable that each button in Main menu can raise
-        self.create_new_p1 = create_new_frame
-        self.button_panel = create_new_button_panel_frame
-        self.manage_budget_p1 = manage_budget_frame
+        self.manage_budget_p2.get_selected_cell_info(called_by_manager=1)'''
 
-        #widgets 1 label,3 buttons, another label
-        self.main_menu_label = ctk.CTkLabel(self, text="Manage Your Money", text_color="#00aaff", font=('calibri', 65)) 
-        
-        self.create_new_button = ctk.CTkButton(self, text="Create a New Budget", fg_color="#00aaff", font=('calibri', 40), command = self.create_new)
-        self.open_existing_button = ctk.CTkButton(self, text="Manage an Existing Budget", fg_color="#00aaff", font=('calibri', 40), command = self.manage_budget)
-        self.options_button = ctk.CTkButton(self, text="Options", fg_color="#00aaff", font=('calibri', 40))
-
-        self.version_note = ctk.CTkLabel(self, text="Version 0.2", text_color="#686868")
-
-        #variables
-        self.createnew_or_manage = "" #indicator stores one value when 'create new' is pressed, another for 'manage budget'
-
-        #layout
-        self.main_menu_label.grid(row=0, column=1, columnspan=1, sticky='ew')
-
-        self.create_new_button.grid(row=1, column=1, padx=50, pady=10, sticky='ns')
-        self.open_existing_button.grid(row=2, column=1, padx=50, pady=10, sticky='ns')
-        self.options_button.grid(row=3, column=1, padx=10, pady=10, ipadx=110, sticky='ns') 
-
-        self.version_note.grid(row=4, column=2)
-
-    #functions to start budget processes
-    def create_new(self):
-        self.createnew_or_manage = "create new"
-        self.create_new_p1.tkraise()
-        self.button_panel.tkraise()
-        self.create_new_p1.display_template_list()
-    
-    def manage_budget(self):
-        self.createnew_or_manage = "manage budget"
-        self.manage_budget_p1.tkraise()
-        self.button_panel.tkraise()
-        self.manage_budget_p1.display_budget_files()
-       
 class RadioButtonMenu(ctk.CTkFrame):
     def __init__(self, parent, menu_title):
         super().__init__(master=parent)
@@ -236,7 +159,6 @@ class RadioButtonMenu(ctk.CTkFrame):
         self.scrolling_list.grid(row=2, column=0, sticky='nsew', padx=80, columnspan=2)
         self.scrolling_list.grid_columnconfigure(0, weight=1)
         self.scrolling_list.grid_rowconfigure(0, weight=1)
-
 
     #functionality:
     #1-read json file and load user generated templates-called when this page is raised
@@ -1864,7 +1786,7 @@ default_budget_template = {
                         "Expenses" : 
                         {"Housing" : [["Rent", "Utilities", "Phone", "Internet", "TV/Streaming Services", "Maintenance", "Home Insurance", "Other"], [1,1,1,1,1,1,2,1]],
                         "Common Living Expenses" : [["Groceries", "Delivery/Take Out", "Coffee/Treats", "Hygeine and Personal Grooming", "Appliances", "Computer Parts", "Entertainment", "Hobbies and Skill Development", "Bank/Credit Card Fees", "Taxes", "Other"], [1,1,1,1,1,1,1,1,1,2,1]],
-                        "Transportation" : [["Transit Pass", "Car Share Services", "Fuel", "Insurance", "Maintenance", "Parking"], [1,1,1,2,1,1]],
+                        "Transportation" : [["Transit Pass", "Car Share Services", "Fuel", "Insurance", "Maintenance", "Parking", "Other"], [1,1,1,2,1,1,1]],
                         "Clothing" : [["Everyday Use", "Special Occasion", "Other"], [1,1,1]],
                         "Medical" : [["Insurance (life)", "Insurance (Medical)", "Prescription Drugs", "Over the Counter Drugs", "Medical Services", "Paramedical Services", "Dental", "Vision Care", "Skin Care", "Other"], [2,2,1,1,1,1,1,1,1,1]]}
                         }
@@ -1872,6 +1794,8 @@ default_budget_template = {
 #specify directory for user created files 
 user_path = os.path.expanduser("~")
 user_files_path = os.path.join(user_path, "Documents\\Manage Your Money")
+#NOTE in-dev version of program looks for documents folder and finds it.  
+#For in-dev testing it makes sense to have it look at root first, then documents folder. This way the installed version will find that folder, while in-dev will use root.
 
 try:
     os.mkdir(user_files_path)
