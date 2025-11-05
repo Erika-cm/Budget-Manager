@@ -5,9 +5,10 @@ import customtkinter as ctk
 import json
 import os
 import sys
+from enum import Enum
 
-from Logic import AppLogic
-from Visuals import MainMenu, NavigationPanel, Comp1pg1, Comp1pg2, Comp2pg1, Comp2pg2
+from Logic import AppLogic, SystemNames
+from Visuals import MainMenu, NavigationPanel, RadioButtonMenu, EditBudgetTemplate, Comp2pg2, VisualFunctions
 
 # A class for main app window
 class MainWindow(ctk.CTk):
@@ -23,39 +24,44 @@ class MainWindow(ctk.CTk):
         # self.update()
         # self.scaling_factor = self.winfo_width() / windowsize[0]
         
+        #variables
+
         #widgets
         self.app_logic = AppLogic(self)
 
         #widgets (program components)
+        self.visual_functions = VisualFunctions(self)
         self.navigation_panel = NavigationPanel(self, self.app_logic)
+        self.main_menu = MainMenu(self, SystemNames.create_new_system, SystemNames.manage_budget_system, self.app_logic)
+
+        #system: create a new budget
+        self.create_new_template_selection = RadioButtonMenu(self, SystemNames.create_new_system, self.app_logic, "Select A Budget Template")
+        self.create_new_template_editor = EditBudgetTemplate(self, SystemNames.create_new_system, self.app_logic)
+
+        #system: manage an existing budget
+        self.manage_budget_file_selection = RadioButtonMenu(self, SystemNames.manage_budget_system, self.app_logic, "Open Existing Budget")
+        
         #testing
-        self.main_menu = MainMenu(self, self.app_logic)
-        self.comp1_1 = Comp1pg1(self, "System1", self.app_logic)
-        self.comp1_2 = Comp1pg2(self, "System1", self.app_logic)
-        self.comp2_1 = Comp2pg1(self, "System2", self.app_logic)
-        self.comp2_2 = Comp2pg2(self, "System2", self.app_logic)
+        self.comp2_2 = Comp2pg2(self, SystemNames.manage_budget_system, self.app_logic)
 
         #layout
         self.navigation_panel.place(relx=0.5, rely=1, relwidth=1, relheight=0.1, anchor='s')
-
         self.main_menu.place(relx=0.5, rely=0, relwidth=1, relheight=1, anchor='n')
-        self.comp1_1.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
-        self.comp1_2.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
-        self.comp2_1.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
+
+        #system: create a new budget
+        self.create_new_template_selection.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
+        self.create_new_template_editor.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
+
+        #system: manage an existing budget
+        self.manage_budget_file_selection.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
         self.comp2_2.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
 
-        self.main_menu.tkraise()
-        self.app_logic.give_logic_program_system_access(self.navigation_panel, self.main_menu)
-
-        #NOTE directory where user files will be saved may go here
-
-        #icon file needs .exe or .py directory
-        try:
-            exe_path = os.getcwd()
-        except Exception:
-            exe_path = os.path.dirname(os.path.abspath(sys.executable))
-        icon_path = os.path.join(exe_path, "Icon.ico")
-        self.iconbitmap(icon_path)
+        self.visual_functions.raise_panel(self.main_menu)
+        self.app_logic.give_logic_program_system_access(self.visual_functions, self.navigation_panel, self.main_menu, self.create_new_template_selection, self.create_new_template_editor, self.manage_budget_file_selection)
+        self.app_logic.set_user_files_path()
+        icon_path = self.app_logic.set_icon_file_path()
+        if os.path.isfile(icon_path): #icon found, otherwise use default icon
+            self.iconbitmap(icon_path)
         
         self.mainloop()
 
@@ -136,231 +142,11 @@ class MainWindow(ctk.CTk):
     def transaction_editor_window(self):
         self.manage_budget_p2.get_selected_cell_info(called_by_manager=1)'''
 
-class RadioButtonMenu(ctk.CTkFrame):
-    def __init__(self, parent, menu_title):
-        super().__init__(master=parent)
-        self.grid_columnconfigure(0, weight=10)
-        self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(0, weight=2)
-        self.grid_rowconfigure(1, weight=1)
-        self.grid_rowconfigure(2, weight=50)
-
-        #widgets
-        self.menu_label = ctk.CTkLabel(self, text=menu_title, text_color="#00aaff", font=('calibri', 55))
-
-        self.scrolling_list = ctk.CTkScrollableFrame(self)
-
-        self.template_title = ctk.StringVar(value="")
-        self.budget_filename = ctk.StringVar(value="")
-        
-        #layout
-        self.menu_label.grid(row=0, column=0, sticky='ew', columnspan=2)
-    
-        self.scrolling_list.grid(row=2, column=0, sticky='nsew', padx=80, columnspan=2)
-        self.scrolling_list.grid_columnconfigure(0, weight=1)
-        self.scrolling_list.grid_rowconfigure(0, weight=1)
-
-    #functionality:
-    #1-read json file and load user generated templates-called when this page is raised
-    def display_template_list(self): 
-        self.template_list = [default_budget_template]
-        template_path = os.path.join(user_files_path, "budget templates.json")
-        try:
-            with open(template_path, 'r') as template_import:
-                imported_templates = json.load(template_import)
-                for user_template in imported_templates:
-                    self.template_list.append(user_template)
-        except FileNotFoundError:
-            pass #file is not found, load only default to list 
-        for index, template in enumerate(self.template_list):
-            self.template_radiobutton = ctk.CTkRadioButton(self.scrolling_list, text=template.get("Title"), value=template.get("Title"), variable=self.template_title) 
-            self.template_radiobutton.grid(row=0+index, column=0, pady=5, sticky='w')
-        return self.template_list
-    
-    #find all sqlite files in cwd, and place them in list - when page is raised
-    def display_budget_files(self):
-        self.budget_list = []
-        self.file_list = os.listdir(user_files_path)
-        for file in self.file_list:
-            if file.endswith(".sqlite") == True:
-                self.budget_list.append(file)
-        for index, budget in enumerate(self.budget_list):
-            budget_name = budget.split(".")[0]
-            self.budget_radiobutton = ctk.CTkRadioButton(self.scrolling_list, text=budget_name, value=budget, variable=self.budget_filename)
-            self.budget_radiobutton.grid(row=0+index, column=0, pady=5, sticky='w')
-
-class EditBudgetTemplate(ctk.CTkFrame):
+class oldEditBudgetTemplate(ctk.CTkFrame):
     def __init__(self, parent):
         super().__init__(master=parent)
         
-        #widgets
-        #page labels
-        self.edit_template_label = ctk.CTkLabel(self, text="Edit Budget Template", text_color="#00aaff", font=('calibri', 45))
-        self.template_title_label = ctk.CTkLabel(self,text_color="#00aaff", font=('calibri', 35))
         
-        #main frame: the template editor treeview
-        self.budget_template_frame = ctk.CTkFrame(self)
-
-        self.budget_template_frame.bind("<<TreeviewSelect>>", lambda event: self.budget_template_frame.focus())
-
-        self.template_displayed = 0 #inidcator: template has been displayed in treeview
-        self.template_editor = ttk.Treeview(self.budget_template_frame, show='tree', selectmode='browse')
-
-        #secondary frame: contextual menu based on selected element of the treeview widget
-        #income/expense
-        self.context_income_expense = ctk.CTkFrame(self)
-        self.income_expense_label = ctk.CTkLabel(self.context_income_expense, text_color='#ffffff', font=('calibri', 15))
-        self.category_text_box = ctk.CTkTextbox(self.context_income_expense, height=100) #do we want word based text wrapping? default is character
-        #keep track of text box focus
-        self.category_text_box_focus = 0
-
-        def return_pressed_in_category_text_box(event=""):
-            if self.category_text_box.get("1.0", "end-1c") == "":
-                self.category_text_box.delete("0.0", "end")
-                self.category_text_box.mark_set("insert", "0.0")
-            if self.category_text_box.get("1.0", "end-1c") != "":
-                self.template_editor.insert(self.template_editor.focus(), tk.END, text=self.category_text_box.get("1.0", "end-1c")) 
-                self.template_editor.selection_set(self.template_editor.get_children(self.template_editor.focus())[-1])
-                self.template_editor.focus(self.template_editor.get_children(self.template_editor.focus())[-1])
-                self.category_text_box.delete("0.0", "end")
-                self.category_text_box.mark_set("insert", "0.0")
-            return "break"           
-        
-        def update_category_textbox_focus(event):
-            if self.category_text_box_focus == 0:
-                self.category_text_box_focus = 1
-                self.category_text_box.bind("<Return>", return_pressed_in_category_text_box)
-            elif self.category_text_box_focus == 1:
-                self.category_text_box_focus = 0
-                self.category_text_box.unbind("<Return>")
-        
-        self.category_text_box.bind("<FocusIn>", update_category_textbox_focus)
-        self.category_text_box.bind("<FocusOut>", update_category_textbox_focus)
-
-        self.add_category_button = ctk.CTkButton(self.context_income_expense, text="Add New Category", fg_color="#00aaff", font=('calibri', 18), command=return_pressed_in_category_text_box)
-        
-        #category selected
-        self.context_category = ctk.CTkFrame(self)
-        self.category_label = ctk.CTkLabel(self.context_category, text="Category Selected", text_color='#ffffff')
-        self.category_text_box_in_category_menu = ctk.CTkTextbox(self.context_category, height=50)
-
-        def rename_category(event=""):
-            self.template_editor.item(self.template_editor.focus(), text=self.category_text_box_in_category_menu.get("1.0", "end-1c"))
-            return 'break'
-        
-        self.category_textbox_in_category_menu_focus = 0
-
-        def update_category_textbox_in_category_menu_focus(event):
-            if self.category_textbox_in_category_menu_focus == 0:
-                self.category_textbox_in_category_menu_focus = 1
-                self.category_text_box_in_category_menu.bind("<Return>", rename_category)
-            elif self.category_textbox_in_category_menu_focus == 1:
-                self.category_textbox_in_category_menu_focus = 0
-                self.category_text_box_in_category_menu.unbind("<Return>")
-        
-        self.category_text_box_in_category_menu.bind("<FocusIn>", update_category_textbox_in_category_menu_focus)
-        self.category_text_box_in_category_menu.bind("<FocusOut>", update_category_textbox_in_category_menu_focus)
-
-        self.rename_category_button = ctk.CTkButton(self.context_category, text="Rename", fg_color="#00aaff", font=('calibri', 18), command=rename_category)
-       
-        def move_category_up():
-            current_category_pos = self.template_editor.index(self.template_editor.focus())
-            self.template_editor.move(self.template_editor.focus(), self.template_editor.parent(self.template_editor.focus()), current_category_pos-1)
-
-        def move_category_down():
-            current_category_pos = self.template_editor.index(self.template_editor.focus())
-            self.template_editor.move(self.template_editor.focus(), self.template_editor.parent(self.template_editor.focus()), current_category_pos+1)
-
-        self.moveup_category_button = ctk.CTkButton(self.context_category, text="Move Up", fg_color="#00aaff", font=('calibri', 18), command=move_category_up)
-        self.movedown_category_button = ctk.CTkButton(self.context_category, text="Move Down", fg_color="#00aaff", font=('calibri', 18), command=move_category_down)
-        
-        def delete_selected_category():
-            self.template_editor.delete(self.template_editor.focus())
-
-        self.delete_category_button = ctk.CTkButton(self.context_category, text="Delete Category", fg_color="#00aaff", font=('calibri', 18), command=delete_selected_category)
-
-        self.subcategory_text_box_in_category_menu = ctk.CTkTextbox(self.context_category, height=50)
-        #keep track of text box focus
-        self.subcategory_text_box_in_category_menu_focus = 0
-
-        def return_pressed_in_category_menu_subcategory_text_box(event=""):
-            if self.subcategory_text_box_in_category_menu.get("1.0", "end-1c") == "":
-                self.subcategory_text_box_in_category_menu.delete("0.0", "end")
-                self.subcategory_text_box_in_category_menu.mark_set("insert", "0.0")
-            if self.subcategory_text_box_in_category_menu.get("1.0", "end-1c") != "":
-                self.template_editor.insert(self.template_editor.focus(), tk.END, text=self.subcategory_text_box_in_category_menu.get("1.0", "end-1c"), values=(1))
-                self.template_editor.item(self.template_editor.focus(), open=True)
-                self.template_editor.selection_set(self.template_editor.get_children(self.template_editor.focus())[-1]) 
-                self.template_editor.focus(self.template_editor.get_children(self.template_editor.focus())[-1]) 
-                self.subcategory_text_box_in_category_menu.delete("0.0", "end")
-                self.subcategory_text_box_in_category_menu.mark_set("insert", "0.0")
-            return "break"   
-        
-        def update_category_menu_subcategory_textbox_focus(event):
-            if self.subcategory_text_box_in_category_menu_focus == 0:
-                self.subcategory_text_box_in_category_menu_focus = 1
-                self.subcategory_text_box_in_category_menu.bind("<Return>", return_pressed_in_category_menu_subcategory_text_box)
-            elif self.subcategory_text_box_in_category_menu_focus == 1:
-                self.subcategory_text_box_in_category_menu_focus = 0
-                self.subcategory_text_box_in_category_menu.unbind("<Return>")
-        
-        self.subcategory_text_box_in_category_menu.bind("<FocusIn>", update_category_menu_subcategory_textbox_focus)
-        self.subcategory_text_box_in_category_menu.bind("<FocusOut>", update_category_menu_subcategory_textbox_focus)
-        
-        self.add_subcategory_button = ctk.CTkButton(self.context_category, text="Add New Sub-Category", fg_color="#00aaff", font=('calibri', 16), command=return_pressed_in_category_menu_subcategory_text_box)
-        
-        #sub-category selected
-        self.context_subcategory = ctk.CTkFrame(self)
-        self.subcategory_label = ctk.CTkLabel(self.context_subcategory, text="Sub-category Selected", text_color='#ffffff')
-        self.subcategory_textbox = ctk.CTkTextbox(self.context_subcategory, height=50)
-
-        def rename_subcategory(event=""):
-            self.template_editor.item(self.template_editor.focus(), text=self.subcategory_textbox.get("1.0", "end-1c"))
-            return 'break'
-        
-        self.subcategory_textbox_focus = 0
-
-        def update_subcategory_textbox_focus(event):
-            if self.subcategory_textbox_focus == 0:
-                self.subcategory_textbox_focus = 1
-                self.subcategory_textbox.bind("<Return>", rename_subcategory)
-            elif self.subcategory_textbox_focus == 1:
-                self.subcategory_textbox_focus = 0
-                self.subcategory_textbox.unbind("<Return>")
-        
-        self.subcategory_textbox.bind("<FocusIn>", update_subcategory_textbox_focus)
-        self.subcategory_textbox.bind("<FocusOut>", update_subcategory_textbox_focus)
-
-        self.rename_subcategory_button = ctk.CTkButton(self.context_subcategory, text="Rename", fg_color="#00aaff", font=('calibri', 18), command=rename_subcategory)
-
-        def move_subcategory_up():
-            current_subcategory_pos = self.template_editor.index(self.template_editor.focus())
-            self.template_editor.move(self.template_editor.focus(), self.template_editor.parent(self.template_editor.focus()), current_subcategory_pos-1)
-
-        def move_subcategory_down():
-            current_subcategory_pos = self.template_editor.index(self.template_editor.focus())
-            self.template_editor.move(self.template_editor.focus(), self.template_editor.parent(self.template_editor.focus()), current_subcategory_pos+1)
-
-        self.moveup_subcategory_button = ctk.CTkButton(self.context_subcategory, text="Move Up", fg_color="#00aaff", font=('calibri', 18), command=move_subcategory_up)
-        self.movedown_subcategory_button = ctk.CTkButton(self.context_subcategory, text="Move Down", fg_color="#00aaff", font=('calibri', 18), command=move_subcategory_down)
-        
-        def delete_selected_subcategory():
-            self.template_editor.delete(self.template_editor.focus())
-
-        self.delete_subcategory_button = ctk.CTkButton(self.context_subcategory, text="Delete Sub-category", fg_color="#00aaff", font=('calibri', 18), command=delete_selected_subcategory)
-
-        self.monthly_annual = ctk.IntVar()
-        def monthly_annual_checkbox_status():
-            self.template_editor.item(self.template_editor.focus(), values=self.monthly_annual.get())
-
-        self.subcategory_annual_checkbox= ctk.CTkCheckBox(self.context_subcategory, text="Annual", fg_color="#00aaff", font=('calibri', 18), onvalue=2, offvalue=1, variable=self.monthly_annual, command=monthly_annual_checkbox_status)
-
-        #intro message
-        self.context_intro_message = ctk.CTkFrame(self)
-        self.intro_message_label = ctk.CTkLabel(self.context_intro_message, text="To Edit Budget,\n Select a Component\n from the Menu")
-        #save button
-        self.save_button_frame = ctk.CTkFrame(self)
-
         def save_template():  
             new_template = {"Title" : "temporary title"}
             for incexp in self.template_editor.get_children():
@@ -382,116 +168,9 @@ class EditBudgetTemplate(ctk.CTkFrame):
             save_template_window.focus()
             save_template_window.grab_set()
 
-        self.save_template_button = ctk.CTkButton(self.save_button_frame, text="Save Template", fg_color="#00aaff", font=('calibri', 18), command=save_template)
+        #self.save_template_button = ctk.CTkButton(self.save_button_frame, text="Save Template", fg_color="#00aaff", font=('calibri', 18), command=save_template)
 
-        #layout
-        #page labels
-        self.edit_template_label.place(relx=0.5, rely=0, anchor='n')
-        self.template_title_label.place(relx=0.5, rely=0.1, anchor='n')
         
-        #main frame: the template
-        self.budget_template_frame.place(relx=0.08, rely=0.2, relwidth=0.65, relheight=0.80, anchor='nw')
-        self.template_editor.pack(expand=True, fill='both', padx=10, pady=10)
-        
-        #secondary frame: contextual menu
-        #income/expense
-        self.context_income_expense.place(relx=0.74, rely=0.2, relwidth=0.18, relheight=0.70, anchor='nw')
-        self.income_expense_label.pack()
-        self.category_text_box.pack(padx=10, pady=5)
-        self.add_category_button.pack(padx=10, pady=5)
-        #category selected
-        self.context_category.place(relx=0.74, rely=0.2, relwidth=0.18, relheight=0.70, anchor='nw')
-        self.category_label.pack()
-        self.category_text_box_in_category_menu.pack(padx=10, pady=5)
-        self.rename_category_button.pack(padx=10, pady=5)
-        self.moveup_category_button.pack(padx=10, pady=5)
-        self.movedown_category_button.pack(padx=10, pady=5)
-        self.delete_category_button.pack(padx=10, pady=5)
-        self.subcategory_text_box_in_category_menu.pack(padx=10, pady=5)
-        self.add_subcategory_button.pack(padx=10, pady=5)
-        #sub-category selected
-        self.context_subcategory.place(relx=0.74, rely=0.2, relwidth=0.18, relheight=0.70, anchor='nw')
-        self.subcategory_label.pack()
-        self.subcategory_textbox.pack(padx=10, pady=5)
-        self.rename_subcategory_button.pack(padx=10, pady=5)
-        self.moveup_subcategory_button.pack(padx=10, pady=5)
-        self.movedown_subcategory_button.pack(padx=10, pady=5)
-        self.delete_subcategory_button.pack(padx=10, pady=5)
-        self.subcategory_annual_checkbox.pack(padx=10, pady=5)
-        #intro message
-        self.context_intro_message.place(relx=0.74, rely=0.2, relwidth=0.18, relheight=0.70, anchor='nw')
-        self.intro_message_label.pack()
-        #save button
-        self.save_button_frame.place(relx=0.74, rely=0.92, relwidth=0.18, relheight=0.08, anchor='nw')
-        self.save_template_button.pack(padx=5, pady=5, expand=True, fill='both')
-
-        #bind treeview selection events
-        def raise_context_menu(event):
-            #income or expense selected
-            if self.template_editor.item(self.template_editor.parent(self.template_editor.focus())).get("text") == "":
-                self.context_income_expense.tkraise()
-                self.income_expense_label.configure(text=self.template_editor.item(self.template_editor.focus()).get("text") + " Selected")
-            #category selected
-            if self.template_editor.item(self.template_editor.parent((self.template_editor.parent(self.template_editor.focus())))).get("text") == "" and self.template_editor.item(self.template_editor.parent(self.template_editor.focus())).get("text") != "":
-                self.context_category.tkraise()
-                if self.category_text_box_in_category_menu.get("1.0", "end-1c") != "":
-                    self.category_text_box_in_category_menu.delete("0.0", "end")
-                    self.category_text_box_in_category_menu.mark_set("insert", "0.0")
-                self.category_text_box_in_category_menu.insert('0.0', self.template_editor.item(self.template_editor.focus()).get("text"))
-            #subcategory selected
-            if self.template_editor.item(self.template_editor.parent((self.template_editor.parent(self.template_editor.focus())))).get("text") != "":
-                self.context_subcategory.tkraise()
-                if self.subcategory_textbox.get("1.0", "end-1c") != "":
-                    self.subcategory_textbox.delete("0.0", "end")
-                    self.subcategory_textbox.mark_set("insert", "0.0")
-                self.subcategory_textbox.insert('0.0', self.template_editor.item(self.template_editor.focus()).get("text"))
-                if self.template_editor.item(self.template_editor.focus()).get("values")[0] == 1:
-                    self.subcategory_annual_checkbox.deselect()
-                if self.template_editor.item(self.template_editor.focus()).get("values")[0] == 2:
-                    self.subcategory_annual_checkbox.select()
-           
-        self.template_editor.bind("<<TreeviewSelect>>", raise_context_menu)
-
-    def display_template_and_title(self, template_title, template_list): 
-        self.template_displayed = 1
-        self.template_title_label.configure(text="Selected Template: " + template_title)
-        self.income_section = self.template_editor.insert("", 0, text="Income", open=True)
-        self.expenses_section = self.template_editor.insert("", 2, text="Expenses", open=True)
-        for template in template_list:
-            if template.get("Title") == template_title:
-                self.display_template_title_income(template.get("Income"))
-                self.display_template_title_expenses(template.get("Expenses"))
-        self.context_intro_message.tkraise()
-        self.template_list = template_list
-        self.template_title = template_title
-           
-    def display_template_title_income(self, income):
-        for category in income.keys():
-            income_category_id = self.template_editor.insert(self.income_section, tk.END, text=category)
-            for subcat, monthly in zip(income.get(category)[0], income.get(category)[1]):
-                self.template_editor.insert(income_category_id, tk.END, text=subcat, values=monthly)
-
-    def display_template_title_expenses(self, expenses):
-        for category in expenses.keys():
-            expense_category_id = self.template_editor.insert(self.expenses_section, tk.END, text=category) 
-            for subcat, monthly in zip(expenses.get(category)[0], expenses.get(category)[1]): 
-                self.template_editor.insert(expense_category_id, tk.END, text=subcat, values=monthly)
-
-    def set_treeview_style_template_editor(self):
-        self.bg_color = self.budget_template_frame._apply_appearance_mode(ctk.ThemeManager.theme["CTkFrame"]["fg_color"])
-        self.selected_color = self.budget_template_frame._apply_appearance_mode(ctk.ThemeManager.theme["CTkButton"]["fg_color"])
-        self.text_color = self.budget_template_frame._apply_appearance_mode(ctk.ThemeManager.theme["CTkLabel"]["text_color"])
-
-        self.template_editor_style = ttk.Style()
-        self.template_editor_style.theme_use('default')
-        self.template_editor_style.configure("Treeview", fieldbackground=self.bg_color, background=self.bg_color, foreground=self.text_color, font=('calibri', 15), borderwidth=0, rowheight=23)
-        self.template_editor_style.map("Treeview", background=[("selected", self.bg_color)], foreground=[("selected", self.selected_color)]) 
-    
-    def clear_template(self):   
-        if self.template_displayed == 1:
-            self.template_editor.delete(self.income_section)
-            self.template_editor.delete(self.expenses_section)
-            self.template_displayed = 0  
 
 class EnterBudgetAmounts(ctk.CTkFrame):
     def __init__(self, parent, main_menu_frame, scaling_factor):
@@ -888,7 +567,8 @@ class EnterBudgetAmounts(ctk.CTkFrame):
                           [Account Name] text
             )
 
-        ''')#date take form yyyy-mm-dd will likely need to be created from user input for each
+        ''')
+#date take form yyyy-mm-dd will likely need to be created from user input for each
 
         conn.commit()
         #output budget to database
@@ -1776,32 +1456,5 @@ class SaveWindow(ctk.CTkToplevel):
      
         self.clear_textbox.bind("<Enter>", on_hover_clear)
         self.clear_textbox.bind("<Leave>", on_leave_clear)
-
-# #set default sub-categories and their monthly(1)/annual(2) status
-default_budget_template = {
-                        "Title" : 
-                        "Default",
-                        "Income" : 
-                        {"All Income" : [["Employment", "Rent", "Investments", "Other"], [1,2,1,1]]},
-                        "Expenses" : 
-                        {"Housing" : [["Rent", "Utilities", "Phone", "Internet", "TV/Streaming Services", "Maintenance", "Home Insurance", "Other"], [1,1,1,1,1,1,2,1]],
-                        "Common Living Expenses" : [["Groceries", "Delivery/Take Out", "Coffee/Treats", "Hygeine and Personal Grooming", "Appliances", "Computer Parts", "Entertainment", "Hobbies and Skill Development", "Bank/Credit Card Fees", "Taxes", "Other"], [1,1,1,1,1,1,1,1,1,2,1]],
-                        "Transportation" : [["Transit Pass", "Car Share Services", "Fuel", "Insurance", "Maintenance", "Parking", "Other"], [1,1,1,2,1,1,1]],
-                        "Clothing" : [["Everyday Use", "Special Occasion", "Other"], [1,1,1]],
-                        "Medical" : [["Insurance (life)", "Insurance (Medical)", "Prescription Drugs", "Over the Counter Drugs", "Medical Services", "Paramedical Services", "Dental", "Vision Care", "Skin Care", "Other"], [2,2,1,1,1,1,1,1,1,1]]}
-                        }
-
-#specify directory for user created files 
-user_path = os.path.expanduser("~")
-user_files_path = os.path.join(user_path, "Documents\\Manage Your Money")
-#NOTE in-dev version of program looks for documents folder and finds it.  
-#For in-dev testing it makes sense to have it look at root first, then documents folder. This way the installed version will find that folder, while in-dev will use root.
-
-try:
-    os.mkdir(user_files_path)
-except FileExistsError:
-    pass
-except FileNotFoundError:
-    print("Documents folder could not be found")
-    
+  
 main_window = MainWindow("Manage Your Money", (1000, 600))
