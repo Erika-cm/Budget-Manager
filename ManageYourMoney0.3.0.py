@@ -7,8 +7,8 @@ import os
 import sys
 from enum import Enum
 
-from Logic import AppLogic, SystemNames
-from Visuals import MainMenu, NavigationPanel, RadioButtonMenu, EditBudgetTemplate, Comp2pg2, VisualFunctions
+from Logic import AppLogic, SystemNames, SaveObjectTypes
+from Visuals import MainMenu, NavigationPanel, SaveNameWindow, RadioButtonMenu, EditBudgetTemplate, Comp2pg2, VisualFunctions
 
 # A class for main app window
 class MainWindow(ctk.CTk):
@@ -141,36 +141,6 @@ class MainWindow(ctk.CTk):
     
     def transaction_editor_window(self):
         self.manage_budget_p2.get_selected_cell_info(called_by_manager=1)'''
-
-class oldEditBudgetTemplate(ctk.CTkFrame):
-    def __init__(self, parent):
-        super().__init__(master=parent)
-        
-        
-        def save_template():  
-            new_template = {"Title" : "temporary title"}
-            for incexp in self.template_editor.get_children():
-                new_template[self.template_editor.item(incexp).get("text")] = "categories"
-                category = {}
-                for cat in self.template_editor.get_children(item=incexp):
-                    category[self.template_editor.item(cat).get("text")] = "list of lists"
-                    subcategories_and_annual = []
-                    subcategories = []
-                    annual = []
-                    for subcat in self.template_editor.get_children(item=cat):
-                        subcategories.append(self.template_editor.item(subcat).get("text"))
-                        annual.append(self.template_editor.item(subcat).get("values")[0])
-                    subcategories_and_annual.append(subcategories)
-                    subcategories_and_annual.append(annual)
-                    category[self.template_editor.item(cat).get("text")] = subcategories_and_annual
-                new_template[self.template_editor.item(incexp).get("text")] = category 
-            save_template_window=SaveWindow(self, save_object_title=self.template_title, save_object=self.template_list, new_template=new_template)
-            save_template_window.focus()
-            save_template_window.grab_set()
-
-        #self.save_template_button = ctk.CTkButton(self.save_button_frame, text="Save Template", fg_color="#00aaff", font=('calibri', 18), command=save_template)
-
-        
 
 class EnterBudgetAmounts(ctk.CTkFrame):
     def __init__(self, parent, main_menu_frame, scaling_factor):
@@ -1388,73 +1358,5 @@ class ManageBudget(ctk.CTkFrame):
                 table.destroy()
             self.budget_displayed_in_manager = 0
 
-class SaveWindow(ctk.CTkToplevel):
-    def __init__(self, parent, save_object_title, save_object=None, new_template=None): #when expanding this class for saving of DB, confirm required vs optional arguments
-        super().__init__(master=parent)
-        self.title("Save")
-        self.geometry("400x240")
-        self.rowconfigure((0,1,2), weight=1)
-        self.columnconfigure(0, weight=1, uniform='a')
-        self.columnconfigure(1, weight=3, uniform='a')
-        self.columnconfigure(2, weight=1, uniform='a')
-
-        #widgets
-        self.save_window_label = ctk.CTkLabel(self, text="Budget Template", text_color="#00aaff", font=('calibri', 24))
-        save_title_box_content = ctk.StringVar(value=save_object_title)
-        self.save_title_box = ctk.CTkEntry(self, textvariable=save_title_box_content)
-
-        def clear_title_box(*args):
-            self.save_title_box.delete('0', 'end')
-
-        self.clear_textbox = ctk.CTkButton(self, text="clear", fg_color='transparent', hover=False, text_color="#00aaff", font=('calibri', 12), command=clear_title_box)
-
-        def save_template():
-            template_exists = False
-            for template in save_object:
-                if save_title_box_content.get() == template.get("Title") or save_title_box_content.get() == "Default": 
-                    template_exists = True
-                    template_exists_warning = ctk.CTkToplevel()
-                    template_exists_warning.title("Warning")
-                    template_exists_warning.geometry("350x120")
-                    template_exists_warning.focus()
-                    template_exists_warning.grab_set()
-                    template_exists_warning_text = ctk.CTkLabel(template_exists_warning, text="A Template with that Name Already Exists.\nPlease Choose a New Name", text_color="#00aaff", font=('calibri', 12))
-                    template_exists_warning_ok = ctk.CTkButton(template_exists_warning, text="Ok", fg_color="#00aaff", font=('calibri', 18), command=lambda : (template_exists_warning.destroy(), self.focus(), self.grab_set()))
-                    template_exists_warning_text.pack(pady=10, padx=10)
-                    template_exists_warning_ok.pack(pady=10, padx=10)
-                    break
-            if template_exists == False:
-                new_template["Title"] = save_title_box_content.get()
-                if save_object[0].get("Title") == "Default":
-                    save_object.pop(0)
-                save_object.append(new_template)
-                json_budget_templates = json.dumps(save_object, indent=4)
-                template_path = os.path.join(user_files_path, "budget templates.json")
-                with open(template_path, "w") as template_export:
-                    template_export.write(json_budget_templates)
-                self.destroy()
-
-        self.save_window_button = ctk.CTkButton(self, text="Save", fg_color="#00aaff", font=('calibri', 18), command=save_template)
-        
-        self.empty_frame = ctk.CTkFrame(self, fg_color='transparent')
-        
-
-        #layout
-        self.save_window_label.grid(row=0, column=1, sticky='s') 
-        self.save_title_box.grid(row=1, column=1, sticky='ew')
-        self.clear_textbox.grid(row=1, column=2, sticky='ew')
-        self.save_window_button.grid(row=2, column=1, sticky='new')
-
-        self.empty_frame.grid(column=0, row=0, rowspan=3, sticky='ns')
-
-        #change clear button text on hover #004d74
-        def on_hover_clear(*args):
-            self.clear_textbox.configure(text_color="#004d74")
-
-        def on_leave_clear(*args):
-            self.clear_textbox.configure(text_color="#00aaff")
-     
-        self.clear_textbox.bind("<Enter>", on_hover_clear)
-        self.clear_textbox.bind("<Leave>", on_leave_clear)
   
 main_window = MainWindow("Manage Your Money", (1000, 600))

@@ -6,16 +6,25 @@ import os
 import sys
 import json
 if TYPE_CHECKING:
-    from Visuals import MainMenu, NavigationPanel, RadioButtonMenu, EditBudgetTemplate, VisualFunctions
+    from Visuals import MainMenu, NavigationPanel, RadioButtonMenu, EditBudgetTemplate, VisualFunctions, SaveNameWindow
 
 #program system names
 class SystemNames(Enum):
     create_new_system = "CreateNew"
     manage_budget_system = "Manage"
 
+#save object types
+class SaveObjectTypes(Enum):
+    template = "Budget Template"
+    budget = "Budget"
+
 class AppLogic():
     '''
-    
+    System List:
+    \nMETHODS: general app methods
+    \nNAVIGATION PANEL: creates a map of the app, and enables navigation
+    \nRADIOBUTTON MENU: creates a list of radiobuttons for files and templates, acts as a file loading system 
+    \nTEMPLATE EDITOR: enables editing of the budget template (adding/removing/renaming) (sub)categories
     '''
     def __init__(self, parent) -> None:
         
@@ -41,7 +50,7 @@ class AppLogic():
         self.set_template_editor_vars()
         
         
-    #METHODS
+    #GENERAL METHODS
     def give_logic_program_system_access(self, visual_functions: "VisualFunctions", nav_panel: "NavigationPanel", main_menu: "MainMenu", create_new_template_radiobuttons: "RadioButtonMenu", create_new_template_editor: "EditBudgetTemplate", manage_budget_file_radiobuttons: "RadioButtonMenu"): #this will allow logic to access program systems not included in nav_map dict
         self.visual_functions = visual_functions
         self.nav_panel = nav_panel
@@ -49,7 +58,9 @@ class AppLogic():
         self.create_new_template_radiobuttons = create_new_template_radiobuttons
         self.create_new_template_editor = create_new_template_editor
         self.manage_budget_file_radiobuttons = manage_budget_file_radiobuttons
-        self.gen_context_menu_textbox_dict() #this references the other classes, so has to be initialized after they are
+
+    def give_logic_temp_window_acess(self, save_window: "SaveNameWindow"):
+        self.save_window = save_window
         
     def set_user_files_path(self):
         if sys.executable.endswith("python.exe"): #runnig in dev version from .py
@@ -69,7 +80,7 @@ class AppLogic():
             exe_path = os.getcwd()
             icon_path = os.path.join(exe_path, "Icon.ico")
         return icon_path
-
+    
     #NAVIGATION PANEL
     def add_to_nav_map(self, system_name: str, page):
         '''adds new system to nav_map used by navigation menu,
@@ -84,7 +95,7 @@ class AppLogic():
         else:
             pass #page (instance ref) already in list, do nothing
 
-    def system_selection(self, system_name: Enum):
+    def system_selection(self, system_name: SystemNames):
         self.selected_system_pages: list = self.nav_map.get(system_name.value, [])
         self.current_page = 0
         self.visual_functions.raise_panel(self.selected_system_pages[self.current_page])
@@ -94,14 +105,14 @@ class AppLogic():
         elif system_name == SystemNames.manage_budget_system:
             self.display_budget_files()
 
-    def nav_panel_continue_button(self):
+    def nav_panel_continue_button(self): #NOTE: this throws exception when navigating from budget file version of radiobutton menu (it needs to be abstacted, or unique methods need to be added)
         if self.current_page < len(self.selected_system_pages) - 1: #not at end of pages, adv current page and raise corresponding page
             self.current_page += 1
             self.visual_functions.raise_panel(self.selected_system_pages[self.current_page])
-        if self.current_page == 1: #at radiobutton menu, adv to next page(template editor, budget manager)
+        if self.current_page == 1: #at radiobutton menu, adv to next page(template editor, budget manager) NOTE this is where the exception is thrown
             if self.template_displayed == 0: #no template currently dispalyed, display current selection
                 self.create_new_template_editor.set_treeview_style_template_editor()
-                self.selected_template_title: str = self.create_new_template_radiobuttons.extract_selected_template_string_var()
+                self.selected_template_title: str = self.visual_functions.extract_str_var(self.create_new_template_radiobuttons.selected_template_name_widget_str)
                 self.selected_template_dict = self.store_selected_template_dict(self.selected_template_title)
                 self.display_template_and_title(self.selected_template_title, self.selected_template_dict)
             else:
@@ -110,16 +121,17 @@ class AppLogic():
             pass
 
     def nav_panel_back_button(self):
-        if self.current_page == 1: #currently at template editor, return to radiobutton menu #0  
+        if self.current_page == 1: #currently at template editor, return to radiobutton menu #0, reload template list  
             self.clear_template()
+            self.display_template_list()
         if self.current_page > 0: #not at first page, go to previous page
             self.visual_functions.raise_panel(self.selected_system_pages[self.current_page - 1])
             self.current_page -= 1  
         elif self.current_page == 0: #currently on radiobutton menu,return to main menu
             self.visual_functions.raise_panel(self.main_menu)
 
-    #RADIOBUTTON MENU
-    def display_template_list(self): 
+    #RADIOBUTTON MENU NOTE: these functions, and the radiobutton menu class will be extended to work with budget files (remember to try to make these methods abstract where possible)
+    def display_template_list(self): #this for example could apply to templates and budget files
         self.template_list:list[dict] = [self.default_budget_template]
         self.template_title_list:list[str] = [self.default_budget_template.get("Title", str)]
         template_path = os.path.join(self.user_files_path, "budget templates.json")
@@ -256,26 +268,68 @@ class AppLogic():
         self.visual_functions.delete_hierarchy_item(self.template_editor, self.current_focused_item)
 
     def set_monthly_annual_checkbox_status(self):
-        self.visual_functions.get_hierarchy_item(self.template_editor, self.current_focused_item, new_values=self.create_new_template_editor.extract_int_var())
+        self.visual_functions.get_hierarchy_item(self.template_editor, self.current_focused_item, new_values=self.visual_functions.extract_int_var(self.create_new_template_editor.monthly_annual))
+    
+    #SAVE WINDOW
+    def clear_title_box(self, entrybox_widget):
+            self.visual_functions.entrybox_delete(entrybox_widget, "0", "end")
+            self.visual_functions.set_widget_focus(entrybox_widget)
 
-    #bind return key to text boxes
-    #set up a dict to store context menu textboxes and their respective functions (for focus update method)
-    def gen_context_menu_textbox_dict(self):
-        self.textbox_dict = {self.create_new_template_editor.category_text_box : lambda event, widget=self.create_new_template_editor.category_text_box : self.add_textbox_content_to_template_editor(widget, event), 
-                        self.create_new_template_editor.category_text_box_in_category_menu : lambda event, widget=self.create_new_template_editor.category_text_box_in_category_menu : self.rename_hierachy_item(widget, event),
-                        self.create_new_template_editor.subcategory_text_box_in_category_menu : lambda event, widget=self.create_new_template_editor.subcategory_text_box_in_category_menu : self.add_textbox_content_to_template_editor(widget, event),
-                        self.create_new_template_editor.subcategory_textbox : lambda event, widget=self.create_new_template_editor.subcategory_textbox : self.rename_hierachy_item(widget, event)}
+    #change clear button text on hover #004d74
+    def on_hover_clear(self, event, widget):
+        self.visual_functions.configure_widget(widget, new_text_color="#004d74")
 
-    def add_context_menu_textbox_focus(self, event, widget):
-        if self.context_menu_text_box_focus == 0:
-            self.context_menu_text_box_focus = 1
-            widget.bind("<Return>", self.textbox_dict.get(widget))
+    def on_leave_clear(self, event, widget):
+        self.visual_functions.configure_widget(widget, new_text_color="#00aaff")
     
-    def remove_context_menu_textbox_focus(self, event, widget):
-        if self.context_menu_text_box_focus == 1:
-            self.context_menu_text_box_focus = 0
-            widget.unbind("<Return>")   
-    
-    #save button
-    
-#may want to refactor the save window function
+    def call_save_methods(self, save_object_type: SaveObjectTypes):
+        if save_object_type == SaveObjectTypes.template:
+            self.save_budget_template()
+        elif save_object_type == SaveObjectTypes.budget:
+            print("saving a budget")
+
+    #save object: template
+    def save_budget_template(self):
+        self.save_budget_template_title = self.visual_functions.extract_str_var(self.save_window.object_name_text)
+        if self.save_budget_template_title in self.template_title_list:
+            print("Template Exists, spawning warning window")
+        elif self.save_budget_template_title == "": #no text entered, do nothing
+            pass
+        else:
+            #extract template from editor and store in dict
+            incexp = self.visual_functions.get_hierarchy_item_children(self.create_new_template_editor.template_editor)
+            #store income section
+            inc_text = self.visual_functions.get_hierarchy_content(self.create_new_template_editor.template_editor, incexp[0], 'text')
+            inc_cats = self.visual_functions.get_hierarchy_item_children(self.create_new_template_editor.template_editor, incexp[0])
+            inc_dict = {}
+            for cat in inc_cats:
+                subcat_list = []
+                annual_monthly_list = []
+                for subcat in self.visual_functions.get_hierarchy_item_children(self.create_new_template_editor.template_editor, cat):
+                    subcat_list.append(self.visual_functions.get_hierarchy_content(self.create_new_template_editor.template_editor, subcat, 'text'))
+                    annual_monthly_list.append(self.visual_functions.get_hierarchy_content(self.create_new_template_editor.template_editor, subcat, 'values')[0])
+                inc_dict[self.visual_functions.get_hierarchy_content(self.create_new_template_editor.template_editor, cat, 'text')] = [subcat_list, annual_monthly_list]
+            #store expenses section
+            exp_text = self.visual_functions.get_hierarchy_content(self.create_new_template_editor.template_editor, incexp[1], 'text')
+            exp_cats = self.visual_functions.get_hierarchy_item_children(self.create_new_template_editor.template_editor, incexp[1])
+            exp_dict = {}
+            for cat in exp_cats:
+                subcat_list = []
+                annual_monthly_list = []
+                for subcat in self.visual_functions.get_hierarchy_item_children(self.create_new_template_editor.template_editor, cat):
+                    subcat_list.append(self.visual_functions.get_hierarchy_content(self.create_new_template_editor.template_editor, subcat, 'text'))
+                    annual_monthly_list.append(self.visual_functions.get_hierarchy_content(self.create_new_template_editor.template_editor, subcat, 'values')[0])
+                exp_dict[self.visual_functions.get_hierarchy_content(self.create_new_template_editor.template_editor, cat, 'text')] = [subcat_list, annual_monthly_list]
+            #combine sections into dict, and append to list of templates
+            new_template = {"Title": self.save_budget_template_title, inc_text: inc_dict, exp_text: exp_dict}
+            self.template_title_list.append(self.save_budget_template_title)
+            self.template_list.append(new_template)
+            #export new list of templates (ignoring default), overwriting current file
+            budget_templates_json = json.dumps(self.template_list[1:], indent=4)
+            budget_templates_path = os.path.join(self.user_files_path, "budget templates.json")
+            with open(budget_templates_path, 'w') as template_export:
+                template_export.write(budget_templates_json)
+            self.visual_functions.destroy_widget(self.save_window)
+
+    #save object: budget
+    #NOTE: place save budget logic here
