@@ -8,7 +8,7 @@ import sys
 from enum import Enum
 
 from Logic import AppLogic, SystemNames, SaveObjectTypes
-from Visuals import MainMenu, NavigationPanel, SaveNameWindow, RadioButtonMenu, EditBudgetTemplate, Comp2pg2, VisualFunctions
+from Visuals import MainMenu, NavigationPanel, SaveNameWindow, RadioButtonMenu, EditBudgetTemplate, EditBudget, VisualFunctions, VisualThemes
 
 # A class for main app window
 class MainWindow(ctk.CTk):
@@ -16,33 +16,24 @@ class MainWindow(ctk.CTk):
         super().__init__()
         
         #App window chars
-        self.title(title)
-        #self.window_size = windowsize use this to set widget sizes relative to window size if needed
+        self.title(title)        
         self.geometry(f'{windowsize[0]}x{windowsize[1]}')
 
-        #enable adjustment of bounding box for systems that apply UI scaling (fixes Bbox appearing in wrong spot)
-        # self.update()
-        # self.scaling_factor = self.winfo_width() / windowsize[0]
-        
-        #variables
-
         #widgets
+        #program components
         self.app_logic = AppLogic(self)
-
-        #widgets (program components)
+        self.visual_themes = VisualThemes(self)
         self.visual_functions = VisualFunctions(self)
         self.navigation_panel = NavigationPanel(self, self.app_logic)
         self.main_menu = MainMenu(self, SystemNames.create_new_system, SystemNames.manage_budget_system, self.app_logic)
 
         #system: create a new budget
         self.create_new_template_selection = RadioButtonMenu(self, SystemNames.create_new_system, self.app_logic, "Select A Budget Template")
-        self.create_new_template_editor = EditBudgetTemplate(self, SystemNames.create_new_system, self.app_logic)
+        self.create_new_template_editor = EditBudgetTemplate(self, SystemNames.create_new_system, self.app_logic, self.visual_themes)
+        self.create_new_budget_editor = EditBudget(self, SystemNames.create_new_system, self.app_logic, self.visual_themes)
 
         #system: manage an existing budget
         self.manage_budget_file_selection = RadioButtonMenu(self, SystemNames.manage_budget_system, self.app_logic, "Open Existing Budget")
-        
-        #testing
-        self.comp2_2 = Comp2pg2(self, SystemNames.manage_budget_system, self.app_logic)
 
         #layout
         self.navigation_panel.place(relx=0.5, rely=1, relwidth=1, relheight=0.1, anchor='s')
@@ -51,19 +42,21 @@ class MainWindow(ctk.CTk):
         #system: create a new budget
         self.create_new_template_selection.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
         self.create_new_template_editor.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
+        self.create_new_budget_editor.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
 
         #system: manage an existing budget
         self.manage_budget_file_selection.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
-        self.comp2_2.place(relx=0.5, rely=0, relwidth=1, relheight=0.9, anchor='n')
 
         self.visual_functions.raise_panel(self.main_menu)
-        self.app_logic.give_logic_program_system_access(self.visual_functions, self.navigation_panel, self.main_menu, self.create_new_template_selection, self.create_new_template_editor, self.manage_budget_file_selection)
+        self.app_logic.give_logic_program_system_access(self.visual_functions, self.navigation_panel, self.main_menu, self.create_new_template_selection, self.create_new_template_editor, self.create_new_budget_editor, self.manage_budget_file_selection)
         self.app_logic.set_user_files_path()
         icon_path = self.app_logic.set_icon_file_path()
         if os.path.isfile(icon_path): #icon found, otherwise use default icon
             self.iconbitmap(icon_path)
         
-        self.mainloop()
+        #enable adjustment of bounding box for systems that apply UI scaling (fixes Bbox appearing in wrong spot)
+        self.visual_functions.update_window_data(self)
+        self.app_logic.set_main_window_scaling_factor(self, windowsize[0])
 
     #two functions to check if user pressed create new or manage existing budget
     '''def createnew_or_managebudget_pressed_back(self):
@@ -145,116 +138,117 @@ class MainWindow(ctk.CTk):
 class EnterBudgetAmounts(ctk.CTkFrame):
     def __init__(self, parent, main_menu_frame, scaling_factor):
         super().__init__(master=parent)
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)    
-        self.grid_rowconfigure(1, weight=50) 
+        # self.grid_columnconfigure(0, weight=1)
+        # self.grid_rowconfigure(0, weight=1)    
+        # self.grid_rowconfigure(1, weight=50) 
 
-        #main menu is accessible from this class
-        self.mainmenu = main_menu_frame
+        # #main menu is accessible from this class
+        # self.mainmenu = main_menu_frame
 
-        #widgets
-        self.enter_budget_amounts_label = ctk.CTkLabel(self, text="Enter your Monthly and Annual Budget Amounts", text_color="#00aaff", font=('calibri', 35))
+        # #widgets
+        # self.enter_budget_amounts_label = ctk.CTkLabel(self, text="Enter Monthly and Annual Budget Amounts", text_color="#00aaff", font=('calibri', 35))
         
-        self.budget_table_frame = ctk.CTkFrame(self)
+        # self.budget_table_frame = ctk.CTkFrame(self)
         
-        self.budget_displayed = 0 #indicator: budget is displayed in table
-        self.budget_table = ttk.Treeview(self.budget_table_frame, columns=('category', 'annual', 'monthly'), show='headings', style="Treeview")
-        self.budget_table.heading('category', text="Budget Category")
-        self.budget_table.heading('annual', text="Annual Amount")
-        self.budget_table.heading('monthly', text="Monthly Amount")
-        self.budget_table.column('annual', anchor='center')
-        self.budget_table.column('monthly', anchor='center')
+        # self.budget_displayed = 0 #indicator: budget is displayed in table
+        # self.budget_table = ttk.Treeview(self.budget_table_frame, columns=('category', 'annual', 'monthly'), show='headings', style="Treeview")
+        # self.budget_table.heading('category', text="Budget Category")
+        # self.budget_table.heading('annual', text="Annual Amount")
+        # self.budget_table.heading('monthly', text="Monthly Amount")
+        # self.budget_table.column('annual', anchor='center')
+        # self.budget_table.column('monthly', anchor='center')
 
-        def budget_table_double_click(event):
-            if self.budget_table.item(self.budget_table.parent(self.budget_table.parent(self.budget_table.focus()))).get("values") == "":
-                return "break" #Do nothing, user selected non-selectable cell (not a subcategory)
-            if self.budget_table.item(self.budget_table.parent(self.budget_table.parent(self.budget_table.focus()))).get("values") != "": 
-                self.row = self.budget_table.identify_row(event.y)
-                self.row_data = self.budget_table.item(self.row).get("values")
-                if self.budget_table.item(self.row).get("values")[3] == 2: #annual subcat clicked 
-                    box_location_annual = self.budget_table.bbox(self.row, column="#2")
-                    box_location_annual = (
-                        int(box_location_annual[0] / scaling_factor),
-                        int(box_location_annual[1] / scaling_factor),
-                        int(box_location_annual[2] / scaling_factor),
-                        int(box_location_annual[3] / scaling_factor)
-                    )
-                    self.annual = True
-                    self.budget_entry = ctk.CTkEntry(self.budget_table, width=box_location_annual[2], height=box_location_annual[3])
-                    self.budget_entry.place(x=box_location_annual[0], y=box_location_annual[1])
-                    self.budget_entry.focus()
-                    self.budget_entry.bind("<Return>", update_budget_table_entry)
-                    self.budget_entry.bind("<FocusOut>", update_budget_table_entry)
-                if self.budget_table.item(self.row).get("values")[3] == 1: #monthly subcat clicked
-                    box_location_monthly = self.budget_table.bbox(self.row, column="#3")
-                    box_location_monthly = (
-                        int(box_location_monthly[0] / scaling_factor),
-                        int(box_location_monthly[1] / scaling_factor),
-                        int(box_location_monthly[2] / scaling_factor),
-                        int(box_location_monthly[3] / scaling_factor)
-                    )
-                    self.annual = False
-                    self.budget_entry = ctk.CTkEntry(self.budget_table, width=box_location_monthly[2], height=box_location_monthly[3])
-                    self.budget_entry.place(x=box_location_monthly[0], y=box_location_monthly[1])
-                    self.budget_entry.focus()
-                    self.budget_entry.bind("<Return>", update_budget_table_entry)
-                    self.budget_entry.bind("<FocusOut>", update_budget_table_entry)
-            return "break"
+        # def budget_table_double_click(event):
+        #     if self.budget_table.item(self.budget_table.parent(self.budget_table.parent(self.budget_table.focus()))).get("values") == "":
+        #         return "break" #Do nothing, user selected non-selectable cell (not a subcategory)
+        #     if self.budget_table.item(self.budget_table.parent(self.budget_table.parent(self.budget_table.focus()))).get("values") != "": 
+        #         self.row = self.budget_table.identify_row(event.y)
+        #         self.row_data = self.budget_table.item(self.row).get("values")
+        #         if self.budget_table.item(self.row).get("values")[3] == 2: #annual subcat clicked 
+        #             box_location_annual = self.budget_table.bbox(self.row, column="#2")
+        #             box_location_annual = (
+        #                 int(box_location_annual[0] / scaling_factor),
+        #                 int(box_location_annual[1] / scaling_factor),
+        #                 int(box_location_annual[2] / scaling_factor),
+        #                 int(box_location_annual[3] / scaling_factor)
+        #             )
+        #             self.annual = True
+        #             self.budget_entry = ctk.CTkEntry(self.budget_table, width=box_location_annual[2], height=box_location_annual[3])
+        #             self.budget_entry.place(x=box_location_annual[0], y=box_location_annual[1])
+        #             self.budget_entry.focus()
+        #             self.budget_entry.bind("<Return>", update_budget_table_entry)
+        #             self.budget_entry.bind("<FocusOut>", update_budget_table_entry)
+        #         if self.budget_table.item(self.row).get("values")[3] == 1: #monthly subcat clicked
+        #             box_location_monthly = self.budget_table.bbox(self.row, column="#3")
+        #             box_location_monthly = (
+        #                 int(box_location_monthly[0] / scaling_factor),
+        #                 int(box_location_monthly[1] / scaling_factor),
+        #                 int(box_location_monthly[2] / scaling_factor),
+        #                 int(box_location_monthly[3] / scaling_factor)
+        #             )
+        #             self.annual = False
+        #             self.budget_entry = ctk.CTkEntry(self.budget_table, width=box_location_monthly[2], height=box_location_monthly[3])
+        #             self.budget_entry.place(x=box_location_monthly[0], y=box_location_monthly[1])
+        #             self.budget_entry.focus()
+        #             self.budget_entry.bind("<Return>", update_budget_table_entry)
+        #             self.budget_entry.bind("<FocusOut>", update_budget_table_entry)
+        #     return "break"
 
-        def update_budget_table_entry(event):
-            if self.annual == True:
-                try:
-                    self.row_data[1] = '${:,.2f}'.format(float(self.budget_entry.get())) 
-                    self.budget_table.item(self.row, values=self.row_data)
-                except ValueError:
-                    self.budget_entry.destroy() #either box was empyty or user entered non-number
-                    return
-            elif self.annual == False:
-                try:
-                    self.row_data[2] = '${:,.2f}'.format(float(self.budget_entry.get()))
-                    self.budget_table.item(self.row, values=self.row_data)
-                except ValueError:
-                    self.budget_entry.destroy()
-                    return
-            self.budget_entry.destroy()
+        # def update_budget_table_entry(event):
+        #     if self.annual == True:
+        #         try:
+        #             self.row_data[1] = '${:,.2f}'.format(float(self.budget_entry.get())) 
+        #             self.budget_table.item(self.row, values=self.row_data)
+        #         except ValueError:
+        #             self.budget_entry.destroy() #either box was empyty or user entered non-number
+        #             return
+        #     elif self.annual == False:
+        #         try:
+        #             self.row_data[2] = '${:,.2f}'.format(float(self.budget_entry.get()))
+        #             self.budget_table.item(self.row, values=self.row_data)
+        #         except ValueError:
+        #             self.budget_entry.destroy()
+        #             return
+        #     self.budget_entry.destroy()
             
-        self.budget_table.bind("<Double-1>", budget_table_double_click)
+        #self.budget_table.bind("<Double-1>", budget_table_double_click)
 
         #layout
-        self.enter_budget_amounts_label.grid(row=0, column=0, sticky='new')
+        # self.enter_budget_amounts_label.grid(row=0, column=0, sticky='new')
 
-        self.budget_table_frame.grid(row=1, column=0, padx=80, sticky='nsew')
-        self.budget_table.pack(expand=True, fill='both', padx=5, pady=5)
+        # self.budget_table_frame.grid(row=1, column=0, padx=80, sticky='nsew')
+        # self.budget_table.pack(expand=True, fill='both', padx=5, pady=5)
     #these functions trigger when comming to this page from template editor
 
-    def display_budget_table(self, budget_template):
-        self.budget_displayed = 1
-        for inc_exp in budget_template.get_children():
-            inc_exp_id = self.budget_table.insert("", tk.END, values=(budget_template.item(inc_exp).get("text"), "", ""), open=True)
-            self.budget_table.tag_configure(inc_exp_id, font=("Calibri", 18, "underline"))
-            self.budget_table.item(inc_exp_id, tags=(inc_exp_id,))
-            for cat in budget_template.get_children(item=inc_exp):
-                cat_id = self.budget_table.insert(inc_exp_id, tk.END, values=(budget_template.item(cat).get("text"), "----------", "----------"), open=True)
-                self.budget_table.tag_configure(cat_id, font=("Calibri", 18, "bold"))
-                self.budget_table.item(cat_id, tags=(cat_id,))
-                for subcat in budget_template.get_children(item=cat):
-                    if budget_template.item(subcat).get("values")[0] == 1:
-                        subcat_id = self.budget_table.insert(cat_id, tk.END, values=(budget_template.item(subcat).get("text"),"----------","", 1), open=True)
-                    if budget_template.item(subcat).get("values")[0] == 2:
-                        subcat_id = self.budget_table.insert(cat_id, tk.END, values=(budget_template.item(subcat).get("text"),"","----------", 2), open=True)
-                    self.budget_table.tag_configure(subcat_id, font=("Calibri", 15))
-                    self.budget_table.item(subcat_id, tags=(subcat_id,))
+    # def display_budget_table(self, budget_template):
+    #     self.budget_displayed = 1
+    #     for inc_exp in budget_template.get_children():
+    #         inc_exp_id = self.budget_table.insert("", tk.END, values=(budget_template.item(inc_exp).get("text"), "", ""), open=True)
+    #         self.budget_table.tag_configure(inc_exp_id, font=("Calibri", 18, "underline"))
+    #         self.budget_table.item(inc_exp_id, tags=(inc_exp_id,))
+    #         for cat in budget_template.get_children(item=inc_exp):
+    #             cat_id = self.budget_table.insert(inc_exp_id, tk.END, values=(budget_template.item(cat).get("text"), "----------", "----------"), open=True)
+    #             self.budget_table.tag_configure(cat_id, font=("Calibri", 18, "bold"))
+    #             self.budget_table.item(cat_id, tags=(cat_id,))
+    #             for subcat in budget_template.get_children(item=cat):
+    #                 if budget_template.item(subcat).get("values")[0] == 1:
+    #                     subcat_id = self.budget_table.insert(cat_id, tk.END, values=(budget_template.item(subcat).get("text"),"----------","", 1), open=True)
+    #                 if budget_template.item(subcat).get("values")[0] == 2:
+    #                     subcat_id = self.budget_table.insert(cat_id, tk.END, values=(budget_template.item(subcat).get("text"),"","----------", 2), open=True)
+    #                 self.budget_table.tag_configure(subcat_id, font=("Calibri", 15))
+    #                 self.budget_table.item(subcat_id, tags=(subcat_id,))
 
-    def set_treeview_style_table(self):
-        self.bg_color_table = self.budget_table_frame._apply_appearance_mode(ctk.ThemeManager.theme["CTkFrame"]["fg_color"])
-        self.selected_color_table = self.budget_table_frame._apply_appearance_mode(ctk.ThemeManager.theme["CTkButton"]["fg_color"])
-        self.text_color_table = self.budget_table_frame._apply_appearance_mode(ctk.ThemeManager.theme["CTkLabel"]["text_color"])
+    # def set_treeview_style_table(self):
+    #     self.bg_color_table = self.budget_table_frame._apply_appearance_mode(ctk.ThemeManager.theme["CTkFrame"]["fg_color"])
+    #     self.selected_color_table = self.budget_table_frame._apply_appearance_mode(ctk.ThemeManager.theme["CTkButton"]["fg_color"])
+    #     self.text_color_table = self.budget_table_frame._apply_appearance_mode(ctk.ThemeManager.theme["CTkLabel"]["text_color"])
 
-        self.template_table_style = ttk.Style(self)
-        self.template_table_style.theme_use('default')
-        self.template_table_style.configure("Treeview", fieldbackground="#343434", background="#343434", foreground="#ffffff", font=('calibri', 15), borderwidth=0, rowheight=28)
-        self.template_table_style.configure("Treeview.Heading", borderwidth=1, relief="ridge", background="#343434", foreground="#ffffff", font=('calibri', 15))
-        self.template_table_style.map("Treeview", background=[("selected", "#303030")], foreground=[("selected", self.selected_color_table)])
+    #     self.template_table_style = ttk.Style(self)
+    #     self.template_table_style.theme_use('default')
+    #     self.template_table_style.configure("Treeview", fieldbackground="#343434", background="#343434", foreground="#ffffff", font=('calibri', 15), borderwidth=0, rowheight=28)
+    #     self.template_table_style.configure("Treeview.Heading", borderwidth=1, relief="ridge", background="#343434", foreground="#ffffff", font=('calibri', 15))
+    #     self.template_table_style.map("Treeview", background=[("selected", "#303030")], foreground=[("selected", self.selected_color_table)])
+
     #these functions trigger when hitting 'continue' button
     def check_budget_table(self):
         self.blank_cells_found_error_occured = False
@@ -1360,3 +1354,4 @@ class ManageBudget(ctk.CTkFrame):
 
   
 main_window = MainWindow("Manage Your Money", (1000, 600))
+main_window.mainloop()

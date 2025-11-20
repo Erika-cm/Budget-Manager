@@ -6,7 +6,7 @@ import os
 import sys
 import json
 if TYPE_CHECKING:
-    from Visuals import MainMenu, NavigationPanel, RadioButtonMenu, EditBudgetTemplate, VisualFunctions, SaveNameWindow
+    from Visuals import MainMenu, NavigationPanel, RadioButtonMenu, EditBudgetTemplate, EditBudget, VisualFunctions, SaveNameWindow
 
 #program system names
 class SystemNames(Enum):
@@ -25,6 +25,7 @@ class AppLogic():
     \nNAVIGATION PANEL: creates a map of the app, and enables navigation
     \nRADIOBUTTON MENU: creates a list of radiobuttons for files and templates, acts as a file loading system 
     \nTEMPLATE EDITOR: enables editing of the budget template (adding/removing/renaming) (sub)categories
+    \nSAVE WINDOW: creates a window for entering a name and saving a template or a budget
     '''
     def __init__(self, parent) -> None:
         
@@ -48,15 +49,24 @@ class AppLogic():
                         }
         
         self.set_template_editor_vars()
+        self.set_budget_editor_vars()
         
         
     #GENERAL METHODS
-    def give_logic_program_system_access(self, visual_functions: "VisualFunctions", nav_panel: "NavigationPanel", main_menu: "MainMenu", create_new_template_radiobuttons: "RadioButtonMenu", create_new_template_editor: "EditBudgetTemplate", manage_budget_file_radiobuttons: "RadioButtonMenu"): #this will allow logic to access program systems not included in nav_map dict
+    def give_logic_program_system_access(self, 
+                                         visual_functions: "VisualFunctions", 
+                                         nav_panel: "NavigationPanel", 
+                                         main_menu: "MainMenu", 
+                                         create_new_template_radiobuttons: "RadioButtonMenu", 
+                                         create_new_template_editor: "EditBudgetTemplate", 
+                                         create_new_budget_editor: "EditBudget", 
+                                         manage_budget_file_radiobuttons: "RadioButtonMenu"): #this will allow logic to access program systems not included in nav_map dict
         self.visual_functions = visual_functions
         self.nav_panel = nav_panel
         self.main_menu = main_menu
         self.create_new_template_radiobuttons = create_new_template_radiobuttons
         self.create_new_template_editor = create_new_template_editor
+        self.create_new_budget_editor = create_new_budget_editor
         self.manage_budget_file_radiobuttons = manage_budget_file_radiobuttons
 
     def give_logic_temp_window_acess(self, save_window: "SaveNameWindow"):
@@ -80,6 +90,10 @@ class AppLogic():
             exe_path = os.getcwd()
             icon_path = os.path.join(exe_path, "Icon.ico")
         return icon_path
+    
+    def set_main_window_scaling_factor(self, main_window, main_window_width: int):
+        '''create a var storing scaling factor = actual window width / specified window width'''
+        self.scaling_factor = self.visual_functions.get_widget_width(main_window) / main_window_width        
     
     #NAVIGATION PANEL
     def add_to_nav_map(self, system_name: str, page):
@@ -109,19 +123,22 @@ class AppLogic():
         if self.current_page < len(self.selected_system_pages) - 1: #not at end of pages, adv current page and raise corresponding page
             self.current_page += 1
             self.visual_functions.raise_panel(self.selected_system_pages[self.current_page])
-        if self.current_page == 1: #at radiobutton menu, adv to next page(template editor, budget manager) NOTE this is where the exception is thrown
-            if self.template_displayed == 0: #no template currently dispalyed, display current selection
-                self.create_new_template_editor.set_treeview_style_template_editor()
-                self.selected_template_title: str = self.visual_functions.extract_str_var(self.create_new_template_radiobuttons.selected_template_name_widget_str)
-                self.selected_template_dict = self.store_selected_template_dict(self.selected_template_title)
-                self.display_template_and_title(self.selected_template_title, self.selected_template_dict)
-            else:
-                pass #template already displayed, do nothing
+            if self.current_page == 1: #at radiobutton menu, adv to next page(template editor) 
+                if self.template_displayed == 0: #no template currently dispalyed, display current selection
+                    self.selected_template_title: str = self.visual_functions.extract_str_var(self.create_new_template_radiobuttons.selected_template_name_widget_str)
+                    self.selected_template_dict = self.store_selected_template_dict(self.selected_template_title)
+                    self.display_template_and_title(self.selected_template_title, self.selected_template_dict)
+                else:
+                    pass #template already displayed, do nothing
+            if self.current_page == 2:
+                self.display_budget_table()
         elif self.current_page == len(self.selected_system_pages) - 1: # at end, continue does nothing
             pass
 
-    def nav_panel_back_button(self):
-        if self.current_page == 1: #currently at template editor, return to radiobutton menu #0, reload template list  
+    def nav_panel_back_button(self): #NOTE, the page if conds should appear in inverse of the continue button (counting down)
+        if self.current_page == 2:
+            self.clear_budget_table()
+        elif self.current_page == 1: #currently at template editor, return to radiobutton menu #0, reload template list  
             self.clear_template()
             self.display_template_list()
         if self.current_page > 0: #not at first page, go to previous page
@@ -168,38 +185,35 @@ class AppLogic():
         self.context_menu_text_box_focus = 0 #keep track of text box focus for context menu
     
     def display_template_and_title(self, template_title: str, template: dict| None): 
-        self.template_displayed = 1
-        self.visual_functions.configure_widget(self.create_new_template_editor.template_title_label, new_text="Selected Template: " + template_title)
-        self.income_section = self.visual_functions.insert_into_hierarchy(self.create_new_template_editor.template_editor, "", 0, text_to_insert="Income", display_open=True)
-        self.expenses_section = self.visual_functions.insert_into_hierarchy(self.create_new_template_editor.template_editor, "", 2, text_to_insert="Expenses", display_open=True)
-        if type(template) == dict:
-            self.display_template_income_section(template.get("Income", {}))
-            self.display_template_expenses_section(template.get("Expenses", {}))
-        else: #no template selected
+        self.template_editor = self.create_new_template_editor.template_editor #create instance var ref of the template editor when tempalte displayed
+        if self.template_displayed == 0: #no template currently displayed
+            self.template_displayed = 1
+            self.visual_functions.configure_widget(self.create_new_template_editor.template_title_label, new_text="Selected Template: " + template_title)
+            self.template_income_section = self.visual_functions.insert_into_hierarchy(self.template_editor, "", 0, text_to_insert="Income", display_open=True)
+            self.template_expenses_section = self.visual_functions.insert_into_hierarchy(self.template_editor, "", 2, text_to_insert="Expenses", display_open=True)
+            if type(template) == dict:
+                self.display_template_section(template.get("Income", {}), self.template_income_section)
+                self.display_template_section(template.get("Expenses", {}), self.template_expenses_section)
+            else: #no template selected
+                pass
+            self.visual_functions.raise_panel(self.create_new_template_editor.context_intro_message)
+        else: #a template already displayed (something went wrong, that should not happen)
             pass
-        self.visual_functions.raise_panel(self.create_new_template_editor.context_intro_message)
     
-    def display_template_income_section(self, income: dict):
-        for category in income.keys():
-            income_category_id = self.visual_functions.insert_into_hierarchy(self.create_new_template_editor.template_editor, self.income_section, 'end', text_to_insert=category, display_open=False)
-            for subcat, monthly in zip(income.get(category, [])[0], income.get(category, [])[1]):
-                self.visual_functions.insert_into_hierarchy(self.create_new_template_editor.template_editor, income_category_id, 'end', text_to_insert=subcat, row_values=monthly, display_open=False)
-
-    def display_template_expenses_section(self, expenses: dict):
-        for category in expenses.keys():
-            expense_category_id = self.visual_functions.insert_into_hierarchy(self.create_new_template_editor.template_editor, self.expenses_section, 'end', text_to_insert=category, display_open=False)
-            for subcat, monthly in zip(expenses.get(category, [])[0], expenses.get(category, [])[1]): 
-                self.visual_functions.insert_into_hierarchy(self.create_new_template_editor.template_editor, expense_category_id, 'end', text_to_insert=subcat, row_values=monthly, display_open=False)
+    def display_template_section(self, template_section: dict, template_editor_section: str):
+        for category in template_section.keys():
+            section_category_id = self.visual_functions.insert_into_hierarchy(self.template_editor, template_editor_section, 'end', text_to_insert=category, display_open=False)
+            for subcat, monthly in zip(template_section.get(category, [])[0], template_section.get(category, [])[1]):
+                self.visual_functions.insert_into_hierarchy(self.template_editor, section_category_id, 'end', text_to_insert=subcat, row_values=monthly, display_open=False)
 
     def clear_template(self):   
         if self.template_displayed == 1:
-            self.visual_functions.delete_hierarchy_item(self.create_new_template_editor.template_editor, self.income_section)
-            self.visual_functions.delete_hierarchy_item(self.create_new_template_editor.template_editor, self.expenses_section)
+            self.visual_functions.delete_hierarchy_item(self.create_new_template_editor.template_editor, self.template_income_section)
+            self.visual_functions.delete_hierarchy_item(self.create_new_template_editor.template_editor, self.template_expenses_section)
             self.template_displayed = 0 
 
     #display context menu
     def raise_context_menu(self, event):
-        self.template_editor = self.create_new_template_editor.template_editor
         self.current_focused_item = self.visual_functions.get_hierarchy_focus(self.create_new_template_editor.template_editor)
         current_focused_item_text = self.visual_functions.get_hierarchy_content(self.template_editor, self.current_focused_item, 'text')
         current_item_parent_text = self.visual_functions.get_hierarchy_content(self.template_editor, self.visual_functions.get_hierarchy_item_parent(self.template_editor, self.current_focused_item), 'text')
@@ -331,5 +345,74 @@ class AppLogic():
                 template_export.write(budget_templates_json)
             self.visual_functions.destroy_widget(self.save_window)
 
-    #save object: budget
+    #save object: budget 
     #NOTE: place save budget logic here
+
+    #BUDGET CREATOR
+    def set_budget_editor_vars(self):
+        self.budget_displayed = 0
+
+    def display_budget_table(self):
+        self.budget_table = self.create_new_budget_editor.budget_table
+        if self.budget_displayed == 0:
+            self.visual_functions.configure_hierarchy_values(self.budget_table, "incexpfont", "Calibri", 18, 'underline')
+            self.visual_functions.configure_hierarchy_values(self.budget_table, "catfont", "Calibri", 18, "bold")
+            self.budget_income_section = self.visual_functions.insert_into_hierarchy(self.budget_table, "", 'end', row_values=("Income", "", ""), tags=("incexpfont",), display_open=True)
+            self.budget_expenses_section = self.visual_functions.insert_into_hierarchy(self.budget_table, "", 'end', row_values=("Expenses", "", ""), tags=("incexpfont",), display_open=True)
+            self.display_budget_table_income_section(self.budget_income_section)
+            self.display_budget_table_income_section(self.budget_expenses_section)
+            self.budget_displayed = 1
+        else: #budget already displayed, this should not happen
+            pass
+
+    def display_budget_table_income_section(self, budget_section: str):
+        budget_section_children = self.visual_functions.get_hierarchy_item_children(self.template_editor, budget_section)
+        for category in budget_section_children:
+            category_text = self.visual_functions.get_hierarchy_content(self.template_editor, category, 'text')
+            self.visual_functions.insert_into_hierarchy(self.budget_table, budget_section, 'end', row_values=[category_text, "----------", "----------"], tags=("catfont",))
+            category_children = self.visual_functions.get_hierarchy_item_children(self.template_editor, category)
+            for subcat in category_children:
+                subcat_text = self.visual_functions.get_hierarchy_content(self.template_editor, subcat, 'text')
+                subcat_values = self.visual_functions.get_hierarchy_content(self.template_editor, subcat, 'values')
+                if subcat_values[0] == 1: #monthly
+                    self.visual_functions.insert_into_hierarchy(self.budget_table, category, 'end', row_values=[subcat_text, "----------", ""], tags=("1",))
+                elif subcat_values[0] == 2: #annual
+                    self.visual_functions.insert_into_hierarchy(self.budget_table, category, 'end', row_values=[subcat_text, "", "----------"], tags=("2",))
+    
+    def clear_budget_table(self):
+        if self.budget_displayed == 1:
+            for inc_exp in self.visual_functions.get_hierarchy_item_children(self.budget_table):
+                self.visual_functions.delete_hierarchy_item(self.budget_table, inc_exp)
+            self.budget_displayed = 0
+    
+    #events (core budget editing logic)
+    def budget_table_double_click(self, event):
+        current_focused_item = self.visual_functions.get_hierarchy_focus(self.budget_table)
+        focused_item_grand_grandparent = self.visual_functions.get_hierarchy_item_parent(self.budget_table, self.visual_functions.get_hierarchy_item_parent(self.budget_table, current_focused_item))
+        if self.visual_functions.get_hierarchy_content(self.budget_table, focused_item_grand_grandparent, 'values') == "":
+            return 'break' #user dbl clicked a non-sub-category, do nothing
+        if self.visual_functions.get_hierarchy_content(self.budget_table, focused_item_grand_grandparent, 'values') != "":
+            selected_row_tags = self.visual_functions.get_hierarchy_content(self.budget_table, self.visual_functions.get_hierarchy_row(self.budget_table, event.y), 'tags')
+            self.set_entrybox_location(event, int(selected_row_tags[0]))
+
+    def set_entrybox_location(self, event, row_tag_num: int):
+        self.selected_table_col = 3-row_tag_num #this flips the number to ID the proper column
+        self.selected_row = self.visual_functions.get_hierarchy_row(self.budget_table, event.y)
+        box_location = self.visual_functions.draw_hierarchy_bbox(self.budget_table, self.selected_row, col=self.selected_table_col)
+        #NOTE: the column where the bbox appears is determined by it being monthly or annual, NOT by the location of the dbl click
+        box_location = (
+            int(float(box_location[0]) / self.scaling_factor),
+            int(float(box_location[1]) / self.scaling_factor),
+            int(float(box_location[2]) / self.scaling_factor),
+            int(float(box_location[3]) / self.scaling_factor),
+        )
+        self.create_new_budget_editor.draw_budget_entry_box(self.budget_table, box_location[2], box_location[3], box_location[0], box_location[1])
+
+    def update_budget_table_entry(self, event, entrybox):
+        selected_row_data = self.visual_functions.get_hierarchy_content(self.budget_table, self.selected_row, 'values')
+        try:
+            selected_row_data[self.selected_table_col] = '${:,.2f}'.format(float(self.visual_functions.get_entrybox_content(entrybox)))
+            self.visual_functions.get_hierarchy_item(self.budget_table, self.selected_row, new_values=selected_row_data)
+        except ValueError:
+            pass
+        self.visual_functions.destroy_widget(entrybox)
