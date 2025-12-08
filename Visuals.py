@@ -4,11 +4,12 @@ from tkinter import ttk
 from enum import Enum
 from typing import Literal, overload
 
-from Logic import AppLogic, SystemNames, SaveObjectTypes
+from Logic import AppLogic, SystemNames, SaveObjectTypes, WarningWindowText
 
 class VisualFunctions(ctk.CTkBaseClass):
     '''
     A class to store wrappers of tkinter functions to be called by Logic:
+    \nGENERAL
     \nupdate_window_data(): updates all specified window data outside of mainloop using .update()
     \nraise_panel(): raises a ctk.CTkFrame using tkraise()
     \nconfigure_widget(): alters the indicated parameter of a ctk widget using .configure()
@@ -16,8 +17,10 @@ class VisualFunctions(ctk.CTkBaseClass):
     \nget_widget_focus(): returns the widget that currently has focus using focus_get()
     \nset_widget_focus(): sets input focus to the passed widget using focus_set()
     \ndestroy_widget(): destroys the passed widget using .destroy()
-    \ninsert_into_treeview(): inserts text and values into a ttk Treeview widget using .insert()
-    \ndelete_treeview_item(): deletes a treeview item and all its children using .delete()
+    \nset_grab_to_widget(): this directs all events to the indicated widget (preventing interaction with others) using .grab_set()
+    \nHIERARCHY/TREEVIEW
+    \ninsert_into_hierarchy(): inserts text and values into a ttk Treeview widget using .insert()
+    \ndelete_hierachy_item(): deletes a treeview item and all its children using .delete()
     \nget_hierarchy_item(): will either query or modify a treeview item using .item()
     \nget_hierarchy_parent_item(): will return ID of the parent of a treeview item using .parent()
     \nget_hierarchy_content(): returns either a string or list of text or values for a treeview item using .get()
@@ -25,12 +28,15 @@ class VisualFunctions(ctk.CTkBaseClass):
     \nget_hierarchy_row(): returns string ID of treeview row at Y position, using identify_row()
     \nget_hierarchy_column(): returns string ID of treeview column at X position, using identify_column()
     \nconfigure_hierarchy_values(): allows configuration of the tags element of a treeview item using tag_configure()
+    \nTEXTBOX
     \ntextbox_insert(): inserts text into text box using .insert()
     \ntextbox_delete(): deletes text from a text box using .delete()
     \ntextbox_get(): returns the text from a text box using .get()
     \ntextbox_markset_insert():  places a mark at specficied index of a textbox, in this case limited to an 'insert' type, using .mark_set()
+    \nENTRYBOX
     \nentrybox_delete(): deletes text from an entry box using .delete()
     \nget_entrybox_content(): returns the content of specified entry box, using .get()
+    \nCHECCKBOX
     \ncheckbox_select(): sets the variable linked to a checkbox to the checkbox's value using .select()
     \ncheckbox_deselect(): unsets the variable linked to a checkbox to the checkbox's value using .deselect()
     '''
@@ -46,14 +52,14 @@ class VisualFunctions(ctk.CTkBaseClass):
         '''employ function tkraise to raise the indicated ctk frame'''
         panel.tkraise()
 
-    def configure_widget(self, widget: ctk.CTkBaseClass, new_text: str | None = None, new_text_color: str | None = None):
-        '''employ .configure to alter ctk widgets'''
-        if new_text != None and new_text_color == None: #only new text passed
+    def configure_widget(self, widget: ctk.CTkBaseClass, new_text: str | None = None, new_text_color: str | None = None, new_state: Literal['normal'] | Literal['disabled'] | None = None):
+        '''employ .configure to alter ctk widgets'''      
+        if new_text != None: #apply new text, if passed
             widget.configure(text=new_text)
-        elif new_text == None and new_text_color != None: #only new text color passed
+        elif new_text_color != None: #applly new text color, if passed
             widget.configure(text_color=new_text_color)
-        else: #both new text and new text color passed
-            widget.configure(text=new_text, text_color=new_text_color)
+        elif new_state != None: #set new state, if passed
+            widget.configure(state=new_state)
 
     def get_widget_width(self, widget: ctk.CTk):
         return widget.winfo_width()
@@ -61,11 +67,12 @@ class VisualFunctions(ctk.CTkBaseClass):
     def get_widget_focus(self, widget: ctk.CTk):
         widget.focus_get()
 
-    def set_widget_focus(self, widget: ctk.CTk):
+    def set_widget_focus(self, widget: ctk.CTk | Any):
+        '''Warning: will throw exception if non-CTK object passed'''
         widget.focus_set()
 
     def destroy_widget(self, widget: ctk.CTk | Any):
-        '''will destroy a CTk widget, will throw exception of non-CTk widget is passed'''
+        '''will destroy a CTk widget, Warning: will throw exception of non-CTk object is passed'''
         widget.destroy()
 
     def extract_int_var(self, int_var: ctk.IntVar) -> list[int]:
@@ -76,6 +83,10 @@ class VisualFunctions(ctk.CTkBaseClass):
     def extract_str_var(self, str_var: ctk.StringVar) -> str:
         extracted_string: str = str_var.get()
         return extracted_string
+    
+    def set_grab_to_widget(self, widget: ctk.CTk | Any):
+        '''sets events to this widget, Warning: will throw exception if non-CTK object passed'''
+        widget.grab_set()
 
     #TREEVIEW
     @overload
@@ -202,6 +213,13 @@ class VisualFunctions(ctk.CTkBaseClass):
 
     def checkbox_deselect(self, checkbox: ctk.CTkCheckBox) -> None:
         checkbox.deselect()
+
+    def get_checkbox_status(self, checkbox: ctk.CTkCheckBox) -> str | int:
+        return checkbox.get()
+    
+    def get_checkbox_attribute(self, checkbox: ctk.CTkCheckBox, attribute: str):
+        return checkbox.cget(attribute)
+    
     #general: .focus_set NOTE .focus is an older but compatible version of this, could update all general tkinter widget .focus function calls with focus_set()
 
 class VisualThemes(ctk.CTkBaseClass):
@@ -292,6 +310,13 @@ class RadioButtonMenu(ctk.CTkFrame):
 
         #variables for visuals
         self.selected_template_name_widget_str = ctk.StringVar(value="")
+        self.system_name = system_name
+        self.app_logic = app_logic
+        #this is needed for any page that has more than one instance
+        if system_name == SystemNames.create_new_system:
+            self.page_func = app_logic.display_template_list
+        elif system_name == SystemNames.manage_budget_system:
+            self.page_func = app_logic.display_budget_files
 
         #widgets
         self.menu_label = ctk.CTkLabel(self, text=menu_title, text_color="#00aaff", font=('calibri', 55))
@@ -305,13 +330,22 @@ class RadioButtonMenu(ctk.CTkFrame):
         self.scrolling_list.grid_columnconfigure(0, weight=1)
         self.scrolling_list.grid_rowconfigure(0, weight=1)
 
-        app_logic.add_to_nav_map(system_name.value, self)
+        app_logic.add_to_nav_map(system_name.value, self, self.page_func)
             
-    #create radiobuttons from file/template list
-    def create_radiobuttons(self, file_or_template_names: list[str]):
+    #methods
+    def create_radiobuttons(self, file_or_template_names: list[str]): #create radiobuttons from file/template list
+        self.radiobutton_list = []
         for i, file_template in enumerate(file_or_template_names):
             self.radiobutton = ctk.CTkRadioButton(self.scrolling_list, text=file_template, value=file_template, variable=self.selected_template_name_widget_str)
             self.radiobutton.grid(row=0+i, column=0, pady=5, sticky="w")
+            self.radiobutton_list.append(self.radiobutton)
+
+    def destroy_radiobuttons(self):
+        try:
+            for rb in self.radiobutton_list:
+                rb.destroy()
+        except AttributeError:
+            pass #radiobuttons not found, nothing to delete
 
 class EditBudgetTemplate(ctk.CTkFrame):
     def __init__(self, parent, system_name: SystemNames, app_logic: AppLogic, visual_themes: VisualThemes):
@@ -320,7 +354,9 @@ class EditBudgetTemplate(ctk.CTkFrame):
         #Variables
         self.monthly_annual = ctk.IntVar()
         self.app_logic = app_logic
+        self.system_name = system_name
         self.context_menu_text_box_focus = 0 #keep track of text box focus for context menu
+        self.page_func = app_logic.display_template_and_title
 
         #Widgets
         #page labels
@@ -437,9 +473,10 @@ class EditBudgetTemplate(ctk.CTkFrame):
                         self.subcategory_text_box_in_category_menu : lambda event, widget=self.subcategory_text_box_in_category_menu : app_logic.add_textbox_content_to_template_editor(widget, event),
                         self.subcategory_textbox : lambda event, widget=self.subcategory_textbox : app_logic.rename_hierachy_item(widget, event)}
         
-        app_logic.add_to_nav_map(system_name.value, self)
+        app_logic.add_to_nav_map(system_name.value, self, self.page_func)
         visual_themes.apply_style_hierarchical_menu(self.budget_template_frame)
 
+    #methods
     def add_context_menu_textbox_focus(self, event, widget: ctk.CTkTextbox):
         if self.context_menu_text_box_focus == 0:
             self.context_menu_text_box_focus = 1
@@ -451,7 +488,7 @@ class EditBudgetTemplate(ctk.CTkFrame):
             widget.unbind("<Return>")
 
     def raise_save_template_window(self, app_logic: AppLogic):
-        self.save_template_window = SaveNameWindow(self, SaveObjectTypes.template, app_logic.selected_template_title, app_logic)
+        self.save_template_window = SaveNameWindow(self, SaveObjectTypes.template, app_logic, app_logic.selected_template_title)
         self.save_template_window.focus()
         self.save_template_window.grab_set()    
 
@@ -464,6 +501,7 @@ class EditBudget(ctk.CTkFrame):
 
         #variables
         self.app_logic = app_logic
+        self.page_func = app_logic.display_budget_table
 
         #widgets
         self.enter_budget_amounts_label = ctk.CTkLabel(self, text="Enter Monthly and Annual Budget Amounts", text_color="#00aaff", font=('calibri', 35))
@@ -486,12 +524,13 @@ class EditBudget(ctk.CTkFrame):
         self.budget_table_frame.grid(row=1, column=0, padx=80, sticky='nsew')
         self.budget_table.pack(expand=True, fill='both', padx=5, pady=5)
 
-        app_logic.add_to_nav_map(system_name.value, self)
+        app_logic.add_to_nav_map(system_name.value, self, self.page_func)
         visual_themes.apply_style_table(self)
 
         #events
         self.budget_table.bind("<Double-1>", lambda event: self.app_logic.budget_table_double_click(event))
 
+    #methods
     #create entry boxes on dbl click
     def draw_budget_entry_box(self, hierarchy_name: ttk.Treeview, width: int, height: int, x_pos: int, y_pos: int):
         self.budget_entry = ctk.CTkEntry(hierarchy_name, width=width, height=height)
@@ -499,11 +538,108 @@ class EditBudget(ctk.CTkFrame):
         self.budget_entry.focus()
         self.budget_entry.bind("<Return>", lambda event: self.app_logic.update_budget_table_entry(event, self.budget_entry))
         self.budget_entry.bind("<FocusOut>", lambda event: self.app_logic.update_budget_table_entry(event, self.budget_entry))
+    
+    def raise_blank_cells_error(self):
+        self.blank_cells_window = EditBudgetBlankCellsWindow(self, self.app_logic)
 
-    #func to call save budget window
+    #save budget window
+
+class EditBudgetBlankCellsWindow(ctk.CTkToplevel):
+    def __init__(self, parent, app_logic: AppLogic):
+        super().__init__(master=parent)
+        
+        #Panel chars
+        self.title("Blank Budget Categories")
+        self.geometry("750x500")
+        self.focus()
+        self.grab_set()
+        self.grid_columnconfigure((0,1), weight=1, uniform="a")
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=50)
+        self.grid_rowconfigure(2, weight=1)
+
+        #widgets
+        self.blank_cells_message = ctk.CTkLabel(self, text="Some of Your Budget Categories Have No Assigned Values.\nDo You Want to Proceed Anyway (They will be Given a Value of 0)?", text_color="#00aaff", font=('calibri', 18))
+
+        self.blank_annual_scrolling_frame = ctk.CTkScrollableFrame(self)
+        self.blank_annual_list_title = ctk.CTkLabel(self.blank_annual_scrolling_frame, text="Annual", font=("calibri", 20, "underline"))
+        self.blank_annual_list = ctk.CTkLabel(self.blank_annual_scrolling_frame, text=app_logic.blank_annuals)
+
+        self.blank_monthly_scrolling_frame = ctk.CTkScrollableFrame(self)
+        self.blank_monthly_list_title = ctk.CTkLabel(self.blank_monthly_scrolling_frame, text="Monthly", font=("calibri", 20, "underline"))
+        self.blank_monthly_list = ctk.CTkLabel(self.blank_monthly_scrolling_frame, text=app_logic.blank_monthlies)
+
+        self.blank_cells_cancel = ctk.CTkButton(self, text="Cancel", fg_color="#00aaff", font=("calibri", 18), command=lambda: app_logic.return_to_budget_editor(self)) 
+        self.blank_cells_confirm = ctk.CTkButton(self, text="Confirm", fg_color="#00aaff", font=("calibri", 18), command=lambda: app_logic.fill_empty_cells_with_0())
+
+        #layout
+        self.blank_cells_message.grid(row=0, column=0, columnspan=2, sticky="new")
+
+        self.blank_annual_scrolling_frame.grid(row=1, column=0, padx=(10, 5), pady=(10, 0), sticky="nsew")
+        self.blank_monthly_scrolling_frame.grid(row=1, column=1, padx=(0, 10), pady=(10, 0), sticky="nsew")
+
+        self.blank_annual_list_title.pack()
+        self.blank_annual_list.pack()
+        self.blank_monthly_list_title.pack()
+        self.blank_monthly_list.pack()
+
+        self.blank_cells_cancel.grid(row=2, pady=10, column=0)
+        self.blank_cells_confirm.grid(row=2, pady=10, column=1)
+
+class AccountSelection(ctk.CTkFrame):
+    def __init__(self, parent, system_name: SystemNames, app_logic: AppLogic):
+        super().__init__(master=parent)
+
+        #panel chars
+        self.grid_columnconfigure((0,1), weight=1, uniform='a')
+        self.grid_rowconfigure((0,1,2,3,4), weight=1)
+        self.grid_rowconfigure(5, weight=50)
+        
+        #variables
+        self.system_name = system_name
+        self.default_account_name_list = ["All Accounts", "Chequing", "Savings", "Money Market Account", "Credit Card", "Line of Credit"]
+        self.page_func = app_logic.check_budget_table
+
+        #widgets
+        account_selection_message_0 = ctk.CTkLabel(self, text="One Last Step...", text_color="#00aaff", font=('calibri', 18))
+        account_selection_message_1 = ctk.CTkLabel(self, text="-If you want to keep track of expenses across more than one account, select the account types from the list below.", text_color="#00aaff", font=('calibri', 15))
+        account_selection_message_2 = ctk.CTkLabel(self, text="-You can also add one if it is not in the provided list (not implemented).", text_color="#00aaff", font=('calibri', 15))
+        account_selection_message_3 = ctk.CTkLabel(self, text="-For each account selected, there will be an additional column in your budget for each month (So don't add too many!).", text_color="#00aaff", font=('calibri', 15))
+        account_selection_message_4 = ctk.CTkLabel(self, text="-If you are new to budgeting \"All Accounts\" is recommended.", text_color="#00aaff", font=('calibri', 15))
+
+        account_selection_checklist_frame = ctk.CTkScrollableFrame(self)
+        account_selection_checklist_frame.grid_columnconfigure(0, weight=1)
+        account_selection_checklist_frame.grid_rowconfigure(0, weight=1)
+        
+        self.account_selection_checkbox_list = []
+        for index, account  in enumerate(self.default_account_name_list):
+            if index == 0:
+                account_selection_checkbox = ctk.CTkCheckBox(account_selection_checklist_frame, text=account, command=app_logic.not_checkable)
+                account_selection_checkbox.select()
+            else:
+                account_selection_checkbox = ctk.CTkCheckBox(account_selection_checklist_frame, text=account, command=lambda: app_logic.user_selects_account())
+            account_selection_checkbox.grid(row=0+index, column=0, sticky="wn", pady=5, padx=5)
+            self.account_selection_checkbox_list.append(account_selection_checkbox)
+        
+        #layout
+        account_selection_message_0.grid(row=0, column=0, columnspan=2, padx=80, pady=0, ipady=0, sticky="n")
+        account_selection_message_1.grid(row=1, column=0, columnspan=2, padx=80, pady=0, ipady=0, sticky="nw")
+        account_selection_message_2.grid(row=2, column=0, columnspan=2, padx=80, pady=0, ipady=0, sticky="nw")
+        account_selection_message_3.grid(row=3, column=0, columnspan=2, padx=80, pady=0, ipady=0, sticky="nw")
+        account_selection_message_4.grid(row=4, column=0, columnspan=2, padx=80, pady=0, ipady=0, sticky="nw")
+
+        account_selection_checklist_frame.grid(row=5, column=0, columnspan=2, padx=80, sticky="nsew")
+
+        app_logic.add_to_nav_map(system_name.value, self, self.page_func)
+    
+    #methods
+    def draw_save_budget_window(self, app_logic: AppLogic):
+        self.save_budget_window = SaveNameWindow(self, SaveObjectTypes.budget, app_logic)
+        self.save_budget_window.focus()
+        self.save_budget_window.grab_set()    
 
 class SaveNameWindow(ctk.CTkToplevel):
-    def __init__(self, master: Any, save_object_type: SaveObjectTypes, save_object_title: str, app_logic: AppLogic):
+    def __init__(self, master: Any, save_object_type: SaveObjectTypes, app_logic: AppLogic, save_object_title: str | None = None):
         super().__init__(master)
 
         #panel chars
@@ -542,4 +678,73 @@ class SaveNameWindow(ctk.CTkToplevel):
         self.clear_titlebox.bind("<Enter>", lambda event: app_logic.on_hover_clear(event, self.clear_titlebox))
         self.clear_titlebox.bind("<Leave>", lambda event: app_logic.on_leave_clear(event, self.clear_titlebox))
 
+        self.object_title_box.bind("<Return>", lambda event: app_logic.call_save_methods(save_object_type))
 
+    #methods
+    def draw_save_warning_window(self, app_logic, button_num: int, warning_title: WarningWindowText, warning_message: WarningWindowText):
+        '''This method will generate a warning window when user tries to save an object that already exists, 
+        \nand when confirmation of the save succeeds or fails
+        \nButton_num can be a 1 (ok button only) or a 2 (cancel and confirm buttons)
+        \nmessage and window title are passed using WarningWindowText Enum in Logic.py'''
+        self.warning_window = WarningWindow(self, app_logic, button_num, warning_title, warning_message)
+        self.warning_window.focus()
+        self.warning_window.grab_set()
+
+class WarningWindow(ctk.CTkToplevel):
+    def __init__(self, master: Any, app_logic: AppLogic, button_num: int, warning_title: WarningWindowText, warning_message: WarningWindowText):
+        super().__init__(master)
+
+        #variables
+        self.warning_title = warning_title
+        self.app_logic = app_logic
+
+        #count lines in warning message
+        lines = warning_message.value.count("\n") + 1
+        
+        #get char num of longest line, for window width calculation
+        longest_line = 0
+        for line in warning_message.value.split("\n"):
+            if len(line) > longest_line:
+                longest_line = len(line) 
+
+        #get button count, to set grid tuple
+        columns = []
+        count = 0
+        for col in range(button_num):
+            columns.append(count)
+            count += 1
+
+        #panel chars
+        self.title(self.warning_title.value)
+        width: int = int((100 * abs(longest_line / 28 - 1))) + 300
+        height: int = 100 + (20 * lines)
+        self.geometry(f'{width}x{height}')
+        self.grid_rowconfigure((0,1), weight=1, uniform='a')
+        self.grid_columnconfigure(columns, weight=1, uniform='a')
+
+        #widgets and layout and events
+        self.message = ctk.CTkLabel(self, text=warning_message.value, text_color="#00aaff", font=('calibri', 15))
+        self.message.grid(row=0, column=0, columnspan=button_num, pady=10, padx=5, sticky="ews")
+        if button_num == 1:
+            self.ok_button = ctk.CTkButton(self, text="Ok", fg_color="#00aaff", font=('calibri', 18), command=lambda: app_logic.destroy_warning_and_save_windows(self))
+            self.ok_button.grid(row=1, column=0, pady=10, padx=10, sticky="new")
+            self.bind("<Return>", lambda event: self.destroy())
+        elif button_num == 2 and self.warning_title.name != 'budget_save_confirmed_title': #cancel and confirm
+            self.cancel_button = ctk.CTkButton(self, text="Cancel", fg_color="#00aaff", font=('calibri', 18), command=self.destroy)
+            self.confirm_button = ctk.CTkButton(self, text="Confirm", fg_color="#00aaff", font=('calibri', 18), command=self.call_confirm_methods)
+            self.cancel_button.grid(row=1, column=0, pady=10, padx=(10, 5), sticky="new")
+            self.confirm_button.grid(row=1, column=1, pady=10, padx=(5, 10), sticky="new")
+            self.bind("<Return>", lambda event: self.call_confirm_methods())
+        elif button_num == 2 and self.warning_title.name == 'budget_save_confirmed_title': #return to main and go to manage
+            self.return_to_main_button = ctk.CTkButton(self, text="Main Menu", fg_color="#00aaff", font=('calibri', 18), command=app_logic.return_to_mainmenu)
+            self.goto_manage_button = ctk.CTkButton(self, text="Manage Budget", fg_color="#00aaff", font=('calibri', 18), command=app_logic.manage_new_budget)
+            self.return_to_main_button.grid(row=1, column=0, pady=10, padx=(10, 5), sticky="new")
+            self.goto_manage_button.grid(row=1, column=1, pady=10, padx=(5, 10), sticky="new")
+            self.bind("<Return>", lambda event: app_logic.manage_new_budget())
+
+    #methods
+    def call_confirm_methods(self, event=None):
+        if self.warning_title.name == 'template_exists_title':
+            self.app_logic.save_budget_template()
+        elif self.warning_title.name == 'budgetfile_exists_title':
+            self.app_logic.build_budget_db_structure()
