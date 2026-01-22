@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Literal, TYPE_CHECKING
+from typing import Any, Literal, Tuple, TYPE_CHECKING
 from enum import Enum
 
 import os
@@ -23,6 +23,8 @@ class SaveObjectTypes(Enum):
 class WarningWindowText(Enum):
     template_exists_title = "Template Already Exists"
     template_exists_message = "A Template with that Name Already Exists. \nDo You Want to Overwrite it?"
+    trying_to_replace_default_template_title = "Cannot Replace Default Template"
+    trying_to_replace_default_template_message = "The Default Template Cannot be Replaced. \nPlease Enter a Different Title."
     budgetfile_exists_title = "Budget File Already Exists"
     budgetfile_exists_message = "A Budget File with that Name Already Exists. \nDo you want to Overwrite it?"
     budget_save_confirmed_title = "Budget Save Success"
@@ -30,6 +32,7 @@ class WarningWindowText(Enum):
     budget_save_not_confirmed_title = "Budget Save Failed"
     budget_save_not_confirmed_message = "Budget Save Could not be Confirmed. \nIf the Issue Persists, Please File a Bug Report (via Github.com)"
 
+#used to tag items in a treeview with their level in the hierarchy
 class HierarchyLevel(Enum):
     incexp = "Income or Expenses"
     category = "Category"
@@ -42,6 +45,10 @@ class TrasactionStatuses(Enum):
     deleted = " deleted"
     canceled = " canceled" #when new are deleted
     modifiednew = " new (modified)" #when new is modified
+
+#store app fonts as tuples
+class Fonts(Enum):
+    deleted_radiobutton = ("Calibri", 15, "overstrike")
     
 class AppLogic():
     '''
@@ -59,8 +66,11 @@ class AppLogic():
 
         #variables
         self.nav_map:dict[str, list[list[Any]]] = {}
-        self.page_list = []
-        self.page_func_list = []
+        self.page_list: list = []
+        self.page_func_list: list = []
+        self.budget_list: list = []
+        self.template_list: list[dict]= []
+        self.template_title_list: list[str] = []
         self.ready_to_continue: bool = True #switch can be turned off, if continue functionality needs to be put on hold to deal with an error
 
         self.default_budget_template = {
@@ -162,6 +172,7 @@ class AppLogic():
 
     def system_selection(self, system_name: SystemNames): #occurs from main menu
         self.ready_to_continue = True #ensure this is reset when selecting new system from main menu
+        self.at_system_end: bool = False
         self.selected_system_name = system_name.name
         self.selected_system_pages: list = self.nav_map.get(system_name.value, [])[0]
         self.selected_system_methods: list = self.nav_map.get(system_name.value, [])[1]
@@ -169,27 +180,34 @@ class AppLogic():
         self.visual_functions.raise_panel(self.selected_system_pages[self.current_page])
         self.visual_functions.raise_panel(self.nav_panel)
         self.selected_system_methods[self.current_page]() #should call func for first page of selected system
+        #clear selection from radiobuttons
+        if system_name.name == SystemNames.create_new_system.name:
+            self.create_new_template_radiobuttons.clear_selection()
+            self.nav_panel.set_radiobutton_buttons_to_inactive()
+        elif system_name.name == SystemNames.manage_budget_system.name:
+            self.manage_budget_file_radiobuttons.clear_selection()
+            self.nav_panel.set_radiobutton_buttons_to_inactive()
 
     def nav_panel_continue_button(self): 
-        #special case logic
-        if self.current_page == 0 and self.selected_system_name == SystemNames.manage_budget_system.name: #entering manager, set continue button text to 'Main Menu'
-            self.visual_functions.configure_widget(self.nav_panel.button_continue, new_text="Main Menu")
-        if self.current_page == 1 and self.selected_system_name == SystemNames.manage_budget_system.name: #at manager, continue btn should raise main menu and clear manager
-            self.visual_functions.raise_panel(self.main_menu)
-            self.visual_functions.configure_widget(self.nav_panel.button_continue, new_text="Continue")
-            self.ready_to_continue = False
-            self.clear_manager_close_conn()
-        if self.current_page == 3 and self.selected_system_name == SystemNames.create_new_system.name: #at account selection,user can return to main or go to manager
-            self.account_selection_confirmed()
-        
         #standard page turning logic
         if self.current_page < len(self.selected_system_pages) - 1: #not at end of pages, adv current page, raise corresponding page, call its starting method
             self.current_page += 1
             self.selected_system_methods[self.current_page]()
+        elif self.current_page == len(self.selected_system_pages) - 1: # at end, continue does nothing
+            self.at_system_end = True
         if self.ready_to_continue == True:
             self.visual_functions.raise_panel(self.selected_system_pages[self.current_page])
-        elif self.current_page == len(self.selected_system_pages) - 1: # at end, continue does nothing
-            pass
+        
+        #special case logic
+        if self.current_page == 1 and self.selected_system_name == SystemNames.manage_budget_system.name: #entering manager, set continue button text to 'Main Menu'
+            self.visual_functions.configure_widget(self.nav_panel.button_continue, new_text="Main Menu")
+        if self.at_system_end == True and self.selected_system_name == SystemNames.manage_budget_system.name: #at manager, continue btn should raise main menu and clear manager
+            self.clear_manager_close_conn()
+            self.nav_panel.disable_manager_buttons()
+            self.visual_functions.raise_panel(self.main_menu)
+            self.visual_functions.configure_widget(self.nav_panel.button_continue, new_text="Continue")            
+        if self.at_system_end == True and self.selected_system_name == SystemNames.create_new_system.name: #at account selection,user can return to main or go to manager
+            self.account_selection_confirmed()
 
     def nav_panel_back_button(self): #NOTE, the page if conds should appear in inverse of the continue button (counting down)  
         if self.current_page == 1: #returning to radiobutton menu #0, reload template/budget list  
@@ -206,10 +224,10 @@ class AppLogic():
         elif self.current_page == 0: #currently on radiobutton menu,return to main menu
             self.visual_functions.raise_panel(self.main_menu)
 
-    #RADIOBUTTON MENU NOTE: these functions, and the radiobutton menu class will be extended to work with budget files (remember to try to make these methods abstract where possible)
+    #RADIOBUTTON MENU 
     def display_template_list(self): #this for example could apply to templates and budget files
-        self.template_list:list[dict] = [self.default_budget_template]
-        self.template_title_list:list[str] = [self.default_budget_template.get("Title", str)]
+        self.template_list = [self.default_budget_template]
+        self.template_title_list = [self.default_budget_template.get("Title", str)]
         template_path = os.path.join(self.user_files_path, "budget templates.json")
         try:
             with open(template_path, 'r') as template_import:
@@ -221,16 +239,19 @@ class AppLogic():
             pass #file is not found, load only default to list 
         self.create_new_template_radiobuttons.destroy_radiobuttons()
         self.create_new_template_radiobuttons.create_radiobuttons(self.template_title_list)
+        self.nav_panel.enable_radiobutton_buttons()
+        self.initialize_radiobutton_deletion_lists()
     
-    #find all sqlite files in cwd, and place them in list - when page is raised
-    def display_budget_files(self):
-        self.budget_list: list = []
+    def display_budget_files(self): #find all sqlite files in cwd, and place them in list - when page is raised
+        self.budget_list = []
         self.file_list = os.listdir(self.user_files_path)
         for file in self.file_list:
             if file.endswith(".sqlite") == True:
                 self.budget_list.append(file.split(".")[0])
         self.manage_budget_file_radiobuttons.destroy_radiobuttons() 
         self.manage_budget_file_radiobuttons.create_radiobuttons(self.budget_list)
+        self.nav_panel.enable_radiobutton_buttons()
+        self.initialize_radiobutton_deletion_lists()
 
     def store_selected_template_dict(self) -> dict | None: #called by display_template_and_title
         self.selected_template_title: str = self.visual_functions.extract_str_var(self.create_new_template_radiobuttons.selected_object_name_widget_str)
@@ -238,8 +259,9 @@ class AppLogic():
         for template in self.template_list:
             if template.get("Title", str) == self.selected_template_title:
                 selected_template_dict = template
+                self.nav_panel.disable_radiobutton_buttons()
                 return selected_template_dict
-
+        
     def check_and_store_selected_budget(self):
         selected_budget_name: str = self.visual_functions.extract_str_var(self.manage_budget_file_radiobuttons.selected_object_name_widget_str)
         if selected_budget_name == "": #no budget was selected
@@ -247,7 +269,68 @@ class AppLogic():
             self.current_page -= 1
         elif selected_budget_name != "":
             self.ready_to_continue = True
+            self.nav_panel.disable_radiobutton_buttons()
             self.display_budget_management_table(selected_budget_name)
+
+    def initialize_radiobutton_deletion_lists(self): #(re)creates these lists when entering a radiobutton menu
+        self.buttons_to_delete: list = []
+        self.templates_or_budgets_to_delete: list = []
+
+    def activate_delete_radiobutton_button(self):
+        default_rb_text: str = self.visual_functions.get_widget_attribute(self.create_new_template_radiobuttons.radiobutton_list[0], 'text')
+        selected_rb_text: str = self.visual_functions.extract_str_var(self.create_new_template_radiobuttons.selected_object_name_widget_str)
+        if selected_rb_text != default_rb_text: #default was not selected, user can delete
+            self.visual_functions.configure_widget(self.nav_panel.delete_radiobutton_button, new_state='normal')
+        else:
+            pass #user selected default, do not activate delete button
+
+    def activate_confirm_radiobutton_button(self):
+        self.visual_functions.configure_widget(self.nav_panel.confirm_radiobutton_button, new_state='normal')
+
+    def set_radiobutton_menu_instance(self) -> Tuple[RadioButtonMenu , list]:
+        if self.selected_system_name == SystemNames.create_new_system.name: #NOTE: if more than one radiobutton menu is ever added to a system, we can add self.current_page to ID the specific instance to enable unique behaviour for each
+            return self.create_new_template_radiobuttons, self.template_list #NOTE: could self.template_title_list be needed? (the indices should match)
+        elif self.selected_system_name == SystemNames.manage_budget_system.name:
+            return self.manage_budget_file_radiobuttons, self.budget_list #NOTE: this is just the sqlite filenames, may need self.file_list
+        else:
+            raise ValueError(f"Failed to Assign Radiobutton Menu Instance {self.selected_system_name}")
+    
+    def delete_radiobutton_selection(self): 
+        try:
+            radiobutton_menu, self.object_list = self.set_radiobutton_menu_instance()
+            self.visual_functions.configure_widget(self.nav_panel.confirm_radiobutton_button, new_state='normal')
+            for i, button in enumerate(radiobutton_menu.radiobutton_list):
+                buttontext: str = self.visual_functions.get_widget_attribute(button, "text")
+                selected_button_text: str = self.visual_functions.extract_str_var(radiobutton_menu.selected_object_name_widget_str)
+                if buttontext == selected_button_text: #selected button found, stop looping (uniqueness has been enforced so duplicates should not be possible)
+                    self.visual_functions.configure_widget(button, new_font=Fonts.deleted_radiobutton.value)
+                    self.buttons_to_delete.append(button)
+                    self.templates_or_budgets_to_delete.append([self.object_list[i], i]) 
+                    break
+        except ValueError as e:
+            print(f"Error: {e}")
+
+    def confirm_radiobutton_deletions(self):
+        if self.object_list == self.template_list: #deleting templates
+            for i, template in enumerate(self.templates_or_budgets_to_delete):
+                self.template_list.pop(template[1])
+                if i < len(self.templates_or_budgets_to_delete) - 1: #decrement index of template to delete due to change in self.template_list length (only if not at end)
+                    template_index = self.templates_or_budgets_to_delete[i+1][1] - 1
+                    self.templates_or_budgets_to_delete[i+1][1] = template_index
+            deleted_budget_templates_json = json.dumps(self.template_list[1:], indent=4)
+            budget_templates_path = os.path.join(self.user_files_path, "budget templates.json")
+            with open(budget_templates_path, 'w') as template_export:
+                template_export.write(deleted_budget_templates_json)
+                self.display_template_list()
+        elif self.object_list == self.budget_list: #deleting budgets
+            for budget in self.templates_or_budgets_to_delete:
+                budget_path = os.path.join(self.user_files_path, budget[0] + ".sqlite")
+                if os.path.exists(budget_path):
+                    os.remove(budget_path)
+                else:
+                    raise FileNotFoundError(f"Budget File Could not be Found: {budget_path}")
+            self.display_budget_files()
+            
 
     #TEMPLATE EDITOR
     #template window
@@ -372,14 +455,17 @@ class AppLogic():
 
     #save object: template
     def template_name_check(self):
+        default_rb_text: str = self.visual_functions.get_widget_attribute(self.create_new_template_radiobuttons.radiobutton_list[0], 'text')
         self.template_exists_warning_occured: bool = False
-        self.save_budget_template_title = self.visual_functions.extract_str_var(self.save_window.object_name_text)
-        if self.save_budget_template_title in self.template_title_list:
+        self.save_budget_template_title: str = self.visual_functions.extract_str_var(self.save_window.object_name_text)
+        if self.save_budget_template_title == default_rb_text: #text in save window entry is "Default", spawn special warning
+            self.save_window.draw_save_warning_window(self, 1, WarningWindowText.trying_to_replace_default_template_title, WarningWindowText.trying_to_replace_default_template_message)
+        elif self.save_budget_template_title in self.template_title_list:
             self.template_exists_warning_occured = True
             self.save_window.draw_save_warning_window(self, 2, WarningWindowText.template_exists_title, WarningWindowText.template_exists_message)
         else:
             self.save_budget_template()
-    
+
     def save_budget_template(self):    
         if self.template_exists_warning_occured == True:
             template_to_remove: int = self.template_title_list.index(self.save_budget_template_title)
@@ -542,10 +628,10 @@ class AppLogic():
             self.save_window.draw_save_warning_window(self, 2, WarningWindowText.budget_save_confirmed_title, WarningWindowText.budget_save_confirmed_message)
     
     #this is needed because the save window is the parent of the warning window
-    #this is called by the warning window, so user acknowledgement of failed confirmation simply closes both
+    #this is called by the warning window, so user acknowledgement of failed confirmation, or cannot replace default should close only the warning window
     def destroy_warning_and_save_windows(self, warning_window: WarningWindow): 
         self.visual_functions.destroy_widget(warning_window)
-        self.visual_functions.destroy_widget(self.save_window)
+        #self.visual_functions.destroy_widget(self.save_window) #if we decide that both should close de-comment this
 
     def return_to_mainmenu(self):
         self.visual_functions.destroy_widget(self.save_window)
@@ -900,7 +986,7 @@ class AppLogic():
         if self.selected_row_item == "": #non-row item selected, do nothing
             return "break"
         #these 3 conditions together indicate a cell was selected that user can add data to
-        open_subcat: bool =  self.selected_row_tags[-1] == HierarchyLevel.subcategory.value and self.selected_row_data[self.selected_column-1] != "----------"
+        open_subcat: bool =  self.selected_row_tags[-1] == HierarchyLevel.subcategory.value and self.selected_row_data[self.selected_column-1] != "----------" #is this redundant?
         transaction_column: bool =  self.selected_column > 2
         non_total_col: bool = len(self.selected_row_data) == 3 or len(self.selected_row_data) > 3 and self.selected_column < len(self.selected_row_data)
         self.proper_cell_selected: bool = open_subcat and transaction_column and non_total_col
@@ -918,9 +1004,9 @@ class AppLogic():
         if self.selected_row_item == "":
             return "break"
         if self.proper_cell_selected:
-            if self.selected_row_data[self.selected_column-1] == "": #empty cell dbl clicked, raise transaction editor
+            if self.selected_row_data[self.selected_column-1] == "" or self.selected_row_data[self.selected_column-1] == "$0.00": #empty/0 cell dbl clicked, raise transaction editor
                 self.visual_functions.invoke_button(self.nav_panel.add_new_transaction_button)
-            elif self.selected_row_data[self.selected_column-1] != "": #non-empty cell cbl clicked, raise transaction list
+            elif self.selected_row_data[self.selected_column-1] != "" or self.selected_row_data[self.selected_column-1] != "$0.00": #non-empty cell cbl clicked, raise transaction list
                 self.visual_functions.invoke_button(self.nav_panel.edit_transactions_button)
     
     def clear_manager_close_conn(self):

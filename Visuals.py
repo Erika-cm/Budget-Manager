@@ -3,7 +3,7 @@ import customtkinter as ctk
 from tkinter import ttk
 from typing import Literal, overload
 
-from Logic import AppLogic, SystemNames, SaveObjectTypes, WarningWindowText, TrasactionStatuses
+from Logic import AppLogic, SystemNames, SaveObjectTypes, WarningWindowText, TrasactionStatuses, Fonts
 
 class VisualFunctions(ctk.CTkBaseClass):
     '''
@@ -18,6 +18,7 @@ class VisualFunctions(ctk.CTkBaseClass):
     \ndestroy_widget(): destroys the passed widget using .destroy()
     \nset_int_var(): inputs a new value into a ctk intvar using .set()
     \nset_str_var(): inputs a new string value into a ctk string var using .set()
+    \nget_widget_attribute(): returns the attribute value for indicated widget using .cget()
     \nextract_int_var(): extracts a int from a ctk int var using .get()
     \nextract_str_var(): extracts a string from a ctk string var using .get()
     \nset_grab_to_widget(): this directs all events to the indicated widget (preventing interaction with others) using .grab_set()
@@ -71,7 +72,12 @@ class VisualFunctions(ctk.CTkBaseClass):
         '''employ function tkraise to raise the indicated ctk frame'''
         panel.tkraise()
 
-    def configure_widget(self, widget: ctk.CTkBaseClass, new_text: str | None = None, new_text_color: str | None = None, new_state: Literal['normal'] | Literal['disabled'] | None = None):
+    def configure_widget(self, 
+                         widget: ctk.CTkBaseClass, 
+                         new_text: str | None = None, 
+                         new_text_color: str | None = None, 
+                         new_state: Literal['normal'] | Literal['disabled'] | None = None, 
+                         new_font: Tuple | None = None):
         '''employ .configure to alter ctk widgets'''      
         if new_text != None: #apply new text, if passed
             widget.configure(text=new_text)
@@ -79,6 +85,8 @@ class VisualFunctions(ctk.CTkBaseClass):
             widget.configure(text_color=new_text_color)
         if new_state != None: #set new state, if passed
             widget.configure(state=new_state)
+        if new_font != None:
+            widget.configure(font=new_font)
 
     def get_widget_width(self, widget: ctk.CTk):
         return widget.winfo_width()
@@ -108,6 +116,9 @@ class VisualFunctions(ctk.CTkBaseClass):
     def extract_str_var(self, str_var: ctk.StringVar) -> str:
         extracted_string: str = str_var.get()
         return extracted_string
+    
+    def get_widget_attribute(self, widget: ctk.CTk | Any, attribute: str):
+        return widget.cget(attribute_name=attribute)
     
     def set_grab_to_widget(self, widget: ctk.CTk | Any):
         '''sets events to this widget, Warning: will throw exception if non-CTK object passed'''
@@ -202,7 +213,7 @@ class VisualFunctions(ctk.CTkBaseClass):
     def set_hierarchy_single_selection(self, hierarchy_name: ttk.Treeview, item: str| int):
         hierarchy_name.selection_set(item)
 
-    def configure_hierarchy_values(self, hierarchy_name: ttk.Treeview, font_name: str, font_family: str, size: int = 12, font_modifier: str = ""):
+    def configure_hierarchy_values(self, hierarchy_name: ttk.Treeview, font_name: str, font_family: str = "Calibri", size: int = 12, font_modifier: str = ""):
         '''configures a font that can be applied to the inserted values for the indicated treeview
          \napplied using tags= option in .insert (.insert_into_hierarchy) or .item(.get_hierarchy_item) methods (uses tag_configure)
          \n to apply: hierarchy_name.insert("", 'end', values=(text to be entered), tags = (font name (as a string),))
@@ -334,7 +345,7 @@ class VisualThemes(ctk.CTkBaseClass):
 class NavigationPanel(ctk.CTkFrame):
     def __init__(self, master: Any, app_logic: AppLogic):
         super().__init__(master)
-        self.configure(bg_color="#3b3b3b")
+        self.configure(bg_color="#3b3b3b", corner_radius = 0)
         self.grid_columnconfigure((0,1,2,3), weight=1)
         self.grid_rowconfigure(0, weight=1)
 
@@ -344,6 +355,10 @@ class NavigationPanel(ctk.CTkFrame):
         #widgets    
         self.button_continue = ctk.CTkButton(self, text="Continue", fg_color="#00aaff", font=('calibri', 35), command=app_logic.nav_panel_continue_button)
         self.button_back = ctk.CTkButton(self, text="Back", fg_color="#00aaff", font=('calibri', 35), command=app_logic.nav_panel_back_button)
+        
+        self.delete_radiobutton_button = ctk.CTkButton(self, text="Delete", fg_color="#00aaff", font=('calibri', 35), state="disabled", command=lambda: self.app_logic.delete_radiobutton_selection()) 
+        self.confirm_radiobutton_button = ctk.CTkButton(self, text="Confirm Deletions", fg_color="#00aaff", font=('calibri', 35), state="disabled", command=lambda: self.app_logic.confirm_radiobutton_deletions()) 
+        
         self.add_new_transaction_button = ctk.CTkButton(self, text="Add New Transaction", fg_color="#00aaff", font=('calibri', 35), state="disabled", command=lambda: self.app_logic.get_selected_cell_info(add_new_from_navpanel=1))
         self.edit_transactions_button = ctk.CTkButton(self, text="Edit Transactions", fg_color="#00aaff", font=('calibri', 35), state="disabled", command=lambda: self.app_logic.get_selected_cell_info(add_new_from_navpanel=0))
         #layout
@@ -351,13 +366,23 @@ class NavigationPanel(ctk.CTkFrame):
         self.button_back.grid(row=0, column=0, sticky="nw", pady=10, padx=10)
     
     #methods:
+    def enable_radiobutton_buttons(self):
+        self.delete_radiobutton_button.grid(row=0, column=1, sticky="new", pady=10, padx=10)
+        self.confirm_radiobutton_button.grid(row=0, column=2, sticky="new", pady=10, padx=10)
+
+    def disable_radiobutton_buttons(self):        
+        self.delete_radiobutton_button.grid_forget()
+        self.confirm_radiobutton_button.grid_forget()
+
+    def set_radiobutton_buttons_to_inactive(self):
+        self.delete_radiobutton_button.configure(state='disabled')
+        self.confirm_radiobutton_button.configure(state='disabled')
+
     def enable_manager_buttons(self):
         self.add_new_transaction_button.grid(row=0, column=1, sticky="new", pady=10, padx=10)
         self.edit_transactions_button.grid(row=0, column=2, sticky="new", pady=10, padx=10)
 
     def disable_manager_buttons(self):
-        self.add_new_transaction_button.configure(state='disabled')
-        self.edit_transactions_button.configure(state='disabled')
         self.add_new_transaction_button.grid_forget()
         self.edit_transactions_button.grid_forget()
 
@@ -379,7 +404,7 @@ class MainMenu(ctk.CTkFrame):
         self.open_existing_button = ctk.CTkButton(self, text="Manage an Existing Budget", fg_color="#00aaff", font=('calibri', 40), command = lambda: app_logic.system_selection(manage_budget_system))
         self.options_button = ctk.CTkButton(self, text="Options", fg_color="#00aaff", font=('calibri', 40))
 
-        self.version_note = ctk.CTkLabel(self, text="Version 0.3.0", text_color="#686868")
+        self.version_note = ctk.CTkLabel(self, text="Version 0.3.1", text_color="#686868")
 
         #layout
         self.main_menu_label.grid(row=0, column=1, columnspan=1, sticky='ew')
@@ -393,6 +418,7 @@ class MainMenu(ctk.CTkFrame):
 class RadioButtonMenu(ctk.CTkFrame):
     def __init__(self, parent, system_name: SystemNames, app_logic: AppLogic, menu_title: str):
         super().__init__(master=parent)
+        self.configure(corner_radius = 0)
         self.grid_columnconfigure(0, weight=10)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=2)
@@ -403,6 +429,7 @@ class RadioButtonMenu(ctk.CTkFrame):
         self.selected_object_name_widget_str = ctk.StringVar(value="")
         self.system_name = system_name
         self.app_logic = app_logic
+        
         #this is needed for any page that has more than one instance
         if system_name == SystemNames.create_new_system:
             self.page_func = app_logic.display_template_list
@@ -425,9 +452,9 @@ class RadioButtonMenu(ctk.CTkFrame):
             
     #methods
     def create_radiobuttons(self, file_or_template_names: list[str]): #create radiobuttons from file/template list
-        self.radiobutton_list = []
+        self.radiobutton_list: list[ctk.CTkRadioButton] = []
         for i, file_template in enumerate(file_or_template_names):
-            self.radiobutton = ctk.CTkRadioButton(self.scrolling_list, text=file_template, value=file_template, variable=self.selected_object_name_widget_str)
+            self.radiobutton = ctk.CTkRadioButton(self.scrolling_list, text=file_template, font=("Calibri", 15), value=file_template, variable=self.selected_object_name_widget_str, command=lambda: self.app_logic.activate_delete_radiobutton_button())
             self.radiobutton.grid(row=0+i, column=0, pady=5, sticky="w")
             self.radiobutton_list.append(self.radiobutton)
 
@@ -437,10 +464,16 @@ class RadioButtonMenu(ctk.CTkFrame):
                 rb.destroy()
         except AttributeError:
             pass #radiobuttons not found, nothing to delete
+    
+    def clear_selection(self): #upon system selection (entering from main menu), clear any selected radiobuttons and string var
+        self.selected_object_name_widget_str.set(value="")
+        for button in self.radiobutton_list:
+            button.deselect()
 
 class EditBudgetTemplate(ctk.CTkFrame):
     def __init__(self, parent, system_name: SystemNames, app_logic: AppLogic, visual_themes: VisualThemes):
         super().__init__(master=parent)
+        self.configure(corner_radius = 0)
 
         #Variables
         self.monthly_annual = ctk.IntVar()
@@ -457,6 +490,7 @@ class EditBudgetTemplate(ctk.CTkFrame):
         #template editor frame
         self.budget_template_frame = ctk.CTkFrame(self)
         self.template_editor = ttk.Treeview(self.budget_template_frame, show='tree', selectmode='browse')
+        self.budget_frame_scrollbar = ctk.CTkScrollbar(self.budget_template_frame, command=self.template_editor.yview)
 
         #contextual menu 
         #intro message
@@ -506,8 +540,9 @@ class EditBudgetTemplate(ctk.CTkFrame):
 
         #main frame: the template
         self.budget_template_frame.place(relx=0.08, rely=0.2, relwidth=0.65, relheight=0.80, anchor='nw')
-        self.template_editor.pack(expand=True, fill='both', padx=10, pady=10)
-        
+        self.budget_frame_scrollbar.pack(side='right', fill='y')
+        self.template_editor.pack(side='left', expand=True, fill='both', padx=(10,0), pady=10)
+        self.template_editor.configure(yscrollcommand=self.budget_frame_scrollbar.set)
         #contextual menu
         #intro message
         self.context_intro_message.place(relx=0.74, rely=0.2, relwidth=0.18, relheight=0.70, anchor='nw')
@@ -586,6 +621,7 @@ class EditBudgetTemplate(ctk.CTkFrame):
 class EditBudget(ctk.CTkFrame):
     def __init__(self, parent, system_name: SystemNames, app_logic: AppLogic, visual_themes: VisualThemes):
         super().__init__(master=parent)
+        self.configure(corner_radius = 0)
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)    
         self.grid_rowconfigure(1, weight=50) 
@@ -606,14 +642,15 @@ class EditBudget(ctk.CTkFrame):
         self.budget_table.heading('monthly', text="Monthly Amount")
         self.budget_table.column('annual', anchor='center')
         self.budget_table.column('monthly', anchor='center')
-
-        #self.budget_table.bind("<Double-1>", budget_table_double_click)
+        self.budget_table_scrollbar = ctk.CTkScrollbar(self.budget_table_frame, command=self.budget_table.yview)
 
         #layout
         self.enter_budget_amounts_label.grid(row=0, column=0, sticky='new')
 
         self.budget_table_frame.grid(row=1, column=0, padx=80, sticky='nsew')
-        self.budget_table.pack(expand=True, fill='both', padx=5, pady=5)
+        self.budget_table_scrollbar.pack(side='right', fill='y')
+        self.budget_table.pack(side='left', expand=True, fill='both', padx=(5,0), pady=5)
+        self.budget_table.configure(yscrollcommand=self.budget_table_scrollbar.set)
 
         app_logic.add_to_nav_map(system_name.value, self, self.page_func)
         visual_themes.apply_style_table(self)
@@ -642,6 +679,7 @@ class EditBudgetBlankCellsWindow(ctk.CTkToplevel):
         #Panel chars
         self.title("Blank Budget Categories")
         self.geometry("750x500")
+        self.minsize(750, 500)
         self.focus()
         self.grab_set()
         self.grid_columnconfigure((0,1), weight=1, uniform="a")
@@ -682,6 +720,7 @@ class AccountSelection(ctk.CTkFrame):
         super().__init__(master=parent)
 
         #panel chars
+        self.configure(corner_radius = 0)
         self.grid_columnconfigure((0,1), weight=1, uniform='a')
         self.grid_rowconfigure((0,1,2,3,4), weight=1)
         self.grid_rowconfigure(5, weight=50)
@@ -736,6 +775,7 @@ class SaveNameWindow(ctk.CTkToplevel):
         #panel chars
         self.title("Save")
         self.geometry("400x240")
+        self.minsize(400, 240)
         self.grid_columnconfigure((0), weight=1, uniform="a")
         self.grid_columnconfigure((1), weight=3, uniform="a")
         self.grid_columnconfigure((2), weight=3, uniform="a")
@@ -810,6 +850,7 @@ class WarningWindow(ctk.CTkToplevel):
         width: int = int((100 * abs(longest_line / 28 - 1))) + 300
         height: int = 100 + (20 * lines)
         self.geometry(f'{width}x{height}')
+        self.minsize(width, height)
         self.grid_rowconfigure((0,1), weight=1, uniform='a')
         self.grid_columnconfigure(columns, weight=1, uniform='a')
 
@@ -843,6 +884,7 @@ class WarningWindow(ctk.CTkToplevel):
 class ManageBudget(ctk.CTkFrame):
     def __init__(self, parent, system_name: SystemNames, app_logic: AppLogic, visual_theme: VisualThemes):
         super().__init__(master=parent)
+        self.configure(corner_radius = 0)
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)    
         self.grid_rowconfigure(1, weight=50) 
@@ -865,8 +907,11 @@ class ManageBudget(ctk.CTkFrame):
         self.treeview_list: list[ttk.Treeview] = []
         for tab in self.tab_list:
             self.budget_table = ttk.Treeview(tab, show='headings', style="Treeview")
+            self.budget_table_scrollbar = ctk.CTkScrollbar(tab, command=self.budget_table.yview)
             self.treeview_list.append(self.budget_table)
-            self.budget_table.pack(expand=True, fill='both', pady=5, padx=5)
+            self.budget_table_scrollbar.pack(side='right', fill='y')
+            self.budget_table.pack(side='left', expand=True, fill='both', pady=5, padx=5)
+            self.budget_table.configure(yscrollcommand=self.budget_table_scrollbar.set)
         
         #layout
         self.manage_budget_label.grid(row=0, column=0, sticky='new')
@@ -899,6 +944,7 @@ class TransactionListWindow(ctk.CTkToplevel):
         #window chars
         self.title("Transactions List")
         self.geometry("600x550")
+        self.minsize(600, 550)
         self.grid_columnconfigure((0,1,2,3,4), weight=1, uniform='a')
         self.grid_rowconfigure((0,1,2,3), weight=1, uniform='a')
         self.grid_rowconfigure(4, weight=50)
@@ -968,7 +1014,7 @@ class TransactionEditorWindow(ctk.CTkToplevel):
         #window chars
         self.title("Edit Transaction")
         self.geometry("500x550")
-        
+        self.minsize(500, 550)
         self.grid_columnconfigure((0,1), weight=1, uniform='a')
         self.grid_rowconfigure((0), weight=1, uniform='a')
         self.grid_rowconfigure(1, weight=50)

@@ -14,6 +14,7 @@ class MainWindow(ctk.CTk):
         #App window chars
         self.title(title)        
         self.geometry(f'{windowsize[0]}x{windowsize[1]}')
+        self.minsize(windowsize[0], windowsize[1])
 
         #widgets
         #program components
