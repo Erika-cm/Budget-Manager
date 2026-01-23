@@ -277,12 +277,14 @@ class AppLogic():
         self.templates_or_budgets_to_delete: list = []
 
     def activate_delete_radiobutton_button(self):
-        default_rb_text: str = self.visual_functions.get_widget_attribute(self.create_new_template_radiobuttons.radiobutton_list[0], 'text')
-        selected_rb_text: str = self.visual_functions.extract_str_var(self.create_new_template_radiobuttons.selected_object_name_widget_str)
-        if selected_rb_text != default_rb_text: #default was not selected, user can delete
+        activate_delete_rb: bool = True
+        if self.selected_system_name == SystemNames.create_new_system.name: #unique to template editor system...
+            default_rb_text: str = self.visual_functions.get_widget_attribute(self.create_new_template_radiobuttons.radiobutton_list[0], 'text')
+            selected_rb_text: str = self.visual_functions.extract_str_var(self.create_new_template_radiobuttons.selected_object_name_widget_str)
+            if selected_rb_text == default_rb_text: #default was not selected, user can delete
+                activate_delete_rb = False
+        if activate_delete_rb == True:
             self.visual_functions.configure_widget(self.nav_panel.delete_radiobutton_button, new_state='normal')
-        else:
-            pass #user selected default, do not activate delete button
 
     def activate_confirm_radiobutton_button(self):
         self.visual_functions.configure_widget(self.nav_panel.confirm_radiobutton_button, new_state='normal')
@@ -331,7 +333,6 @@ class AppLogic():
                     raise FileNotFoundError(f"Budget File Could not be Found: {budget_path}")
             self.display_budget_files()
             
-
     #TEMPLATE EDITOR
     #template window
     def set_template_editor_vars(self):
@@ -961,7 +962,6 @@ class AppLogic():
                     temp_section_dict[category[0]] = [temp_subcat_list, temp_annual_monthly_list]
             self.budget_structure[incexp[0]] = temp_section_dict
     
-    #events
     def set_active_treeview(self):
         self.current_tab_num: int = self.visual_functions.get_tab_index(self.manage_budget_table.manage_budget_tabs, 
                                                                    self.visual_functions.get_active_tab(self.manage_budget_table.manage_budget_tabs))
@@ -971,6 +971,7 @@ class AppLogic():
         elif self.budget_displayed_in_manager == 1 and self.current_tab_num == 13: #do not apply bindings to yearly total tab (prevents editing of this treeview)
             self.calculate_and_display_yearly_totals()
     
+    #events
     def activate_budget_buttons(self, event, treeview): #single click event
         self.selected_column = int(self.visual_functions.id_hierarchy_column(treeview, event.x).strip("#"))
         self.selected_row_item = self.visual_functions.id_hierarchy_row(treeview, event.y)
