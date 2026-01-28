@@ -4,7 +4,7 @@ import os
 from Logic import AppLogic, SystemNames
 from Visuals import MainMenu, NavigationPanel, RadioButtonMenu, EditBudgetTemplate, EditBudget, AccountSelection, VisualFunctions, VisualThemes, ManageBudget
 
-#NOTE: to create folding code block: ctrl+k then ctrl+,, to de-fold ctrl+k then ctrl+.
+#NOTE: to create folding code block: ctrl+k then ctrl+, | to de-fold ctrl+k then ctrl+.
 
 # A class for main app window
 class MainWindow(ctk.CTk):

@@ -6,6 +6,7 @@ import os
 import sys
 import json
 import sqlite3
+import datetime
 if TYPE_CHECKING:
     from Visuals import MainMenu,NavigationPanel, RadioButtonMenu, EditBudgetTemplate, EditBudget, AccountSelection, VisualFunctions, SaveNameWindow, WarningWindow, ManageBudget, TransactionListWindow, TransactionEditorWindow
 
@@ -89,6 +90,7 @@ class AppLogic():
         self.set_template_editor_vars()
         self.set_budget_editor_vars()
         self.set_budget_manager_vars()
+        self.get_date_from_system()
         
         
     #GENERAL METHODS
@@ -127,8 +129,7 @@ class AppLogic():
             self.transaction_list_window = transaction_list_window
         if transaction_editor_window != None:
             self.transaction_editor_window = transaction_editor_window
-
-        
+    
     def set_user_files_path(self):
         if sys.executable.endswith("python.exe"): #runnig in dev version from .py
             self.user_files_path = os.getcwd() #NOTE if cwd is altered for any reason this can be replaced by a specific folder ref like below
@@ -150,7 +151,12 @@ class AppLogic():
     
     def set_main_window_scaling_factor(self, main_window, main_window_width: int):
         '''create a var storing scaling factor = actual window width / specified window width'''
-        self.scaling_factor = self.visual_functions.get_widget_width(main_window) / main_window_width        
+        self.scaling_factor = self.visual_functions.get_widget_width(main_window) / main_window_width  
+
+    def get_date_from_system(self):
+        self.year: int = datetime.datetime.today().year
+        self.month: int = datetime.datetime.today().month
+        self.day: int = datetime.datetime.today().day
     
 
     #NAVIGATION PANEL
@@ -678,7 +684,7 @@ class AppLogic():
                     self.visual_functions.insert_into_hierarchy(self.budget_table, budget_category, 'end', row_values=[subcat_text, "", "----------"], tags=("2",))
     
     #events (core budget editing logic)
-    def budget_table_double_click(self, event):
+    def budget_table_double_click(self, event): #NOTE: in manager, we use tags to ID hierarchy level.  That may work here as well (if we can add tags at table creation)
         current_focused_item = self.visual_functions.get_hierarchy_focus(self.budget_table)
         focused_item_grand_grandparent = self.visual_functions.get_hierarchy_item_parent(self.budget_table, self.visual_functions.get_hierarchy_item_parent(self.budget_table, current_focused_item))
         if self.visual_functions.get_hierarchy_content(self.budget_table, focused_item_grand_grandparent, 'values') == "":
@@ -691,7 +697,7 @@ class AppLogic():
         self.selected_table_col = 3-row_tag_num #this flips the number to ID the proper column
         self.selected_row = self.visual_functions.get_hierarchy_row(self.budget_table, event.y)
         box_location = self.visual_functions.draw_hierarchy_bbox(self.budget_table, self.selected_row, col=self.selected_table_col)
-        #NOTE: the column where the bbox appears is determined by it being monthly or annual, NOT by the location of the dbl click
+        #NOTE: the column where the bbox appears is determined by it being monthly or annual, NOT by the location of the dbl click x-axis
         box_location = (
             int(float(box_location[0]) / self.scaling_factor),
             int(float(box_location[1]) / self.scaling_factor),
@@ -867,7 +873,7 @@ class AppLogic():
                         subcat_display = [subcat[0], subcat[1]] #subcat name, budget amount
                         [subcat_display.append("") for i in range(2, len(self.budget_table_headings))]
                         if tab_type == "yearly total" and subcat[3] == 1: #add monthly, * 12.  Would yearly total, annuals be caught by the 'else' below?
-                            subcat_display[1] = '${:,.2f}'.format(float(subcat[1].replace(",", "").strip("$")) * 12)
+                            subcat_display[1] = '${:,.2f}'.format(float(subcat[1].replace(",", "").strip("$")) * self.month)
                         elif tab_type == "annual" and subcat[3] == 1 or tab_type == 'monthly' and subcat[3] == 2: #annual tab+monthly subcat or monthly tab+annual subcat 
                             subcat_display = [subcat_display[i] if i <=1 else "----------" for i in range(len(subcat_display))] 
                         current_subcat_values = self.visual_functions.insert_into_hierarchy(table, budget_category, 'end', row_values=(subcat_display), display_open=True, tags=(subcat[2], HierarchyLevel.subcategory.value))     
@@ -935,7 +941,7 @@ class AppLogic():
             for subcat in self.budget_subcat_list:
                 current_yearly_total_cell: float = 0.0
                 current_yearly_total_row: list = self.visual_functions.get_hierarchy_content(self.manage_budget_table.treeview_list[13], subcat, 'values')
-                for tab in self.manage_budget_table.treeview_list[:13]:
+                for tab in self.manage_budget_table.treeview_list[:self.month + 1]:
                     current_cell: str = self.visual_functions.get_hierarchy_content(tab, subcat, 'values')[column+2]
                     if current_cell == "" or current_cell == "----------": #cell is blank or dashed out, skip
                         pass
@@ -972,9 +978,11 @@ class AppLogic():
             self.calculate_and_display_yearly_totals()
     
     #events
-    def activate_budget_buttons(self, event, treeview): #single click event
+    def budget_manager_single_click(self, event, treeview):
+        #ID selected row & col
         self.selected_column = int(self.visual_functions.id_hierarchy_column(treeview, event.x).strip("#"))
         self.selected_row_item = self.visual_functions.id_hierarchy_row(treeview, event.y)
+        #these data are needed for cell based functionality (adding,deleting,editing transactions)
         self.selected_row_data = self.visual_functions.get_hierarchy_content(treeview, self.selected_row_item, 'values') #store selected row data
         self.selected_row_tags = self.visual_functions.get_hierarchy_content(treeview, self.selected_row_item, 'tags')
         self.selected_row_parent = self.visual_functions.get_hierarchy_item_parent(treeview, self.selected_row_item) 
@@ -983,15 +991,34 @@ class AppLogic():
         self.selected_row_grandparent = self.visual_functions.get_hierarchy_item_parent(treeview, self.selected_row_parent) 
         self.selected_row_grandparent_data = self.visual_functions.get_hierarchy_content(treeview, self.selected_row_grandparent, 'values') #store income/expense data for list and editor windows
         self.selected_row_grandparent_tags = self.visual_functions.get_hierarchy_content(treeview, self.selected_row_grandparent, 'tags')
-        
         if self.selected_row_item == "": #non-row item selected, do nothing
             return "break"
-        #these 3 conditions together indicate a cell was selected that user can add data to
-        open_subcat: bool =  self.selected_row_tags[-1] == HierarchyLevel.subcategory.value and self.selected_row_data[self.selected_column-1] != "----------" #is this redundant?
+        if self.manage_budget_table.cell_highlight_exists == True:
+            self.visual_functions.destroy_widget(self.manage_budget_table.cell_highlight)
+            self.manage_budget_table.cell_highlight_exists = False 
+        self.validate_selected_cell()
+        self.set_selected_cell_location(treeview)
+        self.set_budget_button_status(self.proper_cell_selected)
+
+    def validate_selected_cell(self): #these 3 conditions together indicate a cell was selected that user can add data to, sets selected cell bool as instance var
+        open_subcat: bool =  self.selected_row_tags[-1] == HierarchyLevel.subcategory.value and self.selected_row_data[self.selected_column-1] != "----------" 
         transaction_column: bool =  self.selected_column > 2
         non_total_col: bool = len(self.selected_row_data) == 3 or len(self.selected_row_data) > 3 and self.selected_column < len(self.selected_row_data)
         self.proper_cell_selected: bool = open_subcat and transaction_column and non_total_col
-        self.set_budget_button_status(self.proper_cell_selected)
+
+    def set_selected_cell_location(self, treeview):    
+        if self.proper_cell_selected:
+            cell_location = self.visual_functions.draw_hierarchy_bbox(treeview, self.selected_row_item, self.selected_column-1)
+            cell_location = (
+                            int(float(cell_location[0]) / self.scaling_factor),
+                            int(float(cell_location[1]) / self.scaling_factor),
+                            int(float(cell_location[2]) / self.scaling_factor),
+                            int(float(cell_location[3]) / self.scaling_factor),
+                            )
+            self.manage_budget_table.draw_cell_highlight(treeview, cell_location[2], cell_location[3], cell_location[0], cell_location[1]) 
+
+    def destroy_previous_testbox(self, box):
+        self.visual_functions.destroy_widget(box)
         
     def set_budget_button_status(self, proper_cell: bool):
         if proper_cell: #proper cell selected, enable management buttons in nav panel
@@ -1009,7 +1036,7 @@ class AppLogic():
                 self.visual_functions.invoke_button(self.nav_panel.add_new_transaction_button)
             elif self.selected_row_data[self.selected_column-1] != "" or self.selected_row_data[self.selected_column-1] != "$0.00": #non-empty cell cbl clicked, raise transaction list
                 self.visual_functions.invoke_button(self.nav_panel.edit_transactions_button)
-    
+
     def clear_manager_close_conn(self):
         for treeview in self.manage_budget_table.treeview_list:
             root_items = self.visual_functions.get_hierarchy_item_children(treeview)

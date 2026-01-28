@@ -2,6 +2,7 @@ from typing import Any, Tuple
 import customtkinter as ctk
 from tkinter import ttk
 from typing import Literal, overload
+import pywinstyles
 
 from Logic import AppLogic, SystemNames, SaveObjectTypes, WarningWindowText, TrasactionStatuses, Fonts
 
@@ -891,7 +892,7 @@ class ManageBudget(ctk.CTkFrame):
 
         #variables
         self.app_logic = app_logic
-        
+        self.cell_highlight_exists: bool = False
         self.page_func = app_logic.check_and_store_selected_budget
 
         #widgets
@@ -920,12 +921,31 @@ class ManageBudget(ctk.CTkFrame):
 
         app_logic.add_to_nav_map(system_name.value, self, self.page_func)
         visual_theme.apply_style_table(self)
-        self.set_click_bindings(0)
+        self.set_click_bindings(0) #NOTE: if default tab is ever set by date or last user interaction, this 0 will need to be set by that functionality
 
     #events
     def set_click_bindings(self, active_tab: int):
-        self.treeview_list[active_tab].bind("<Button-1>", lambda event: self.app_logic.activate_budget_buttons(event, self.treeview_list[active_tab]))
-        self.treeview_list[active_tab].bind("<Double-1>", lambda event: self.app_logic.invoke_manage_budget_buttons(event))
+        self.treeview_list[active_tab].bind("<Button-1>", lambda event: self.app_logic.budget_manager_single_click(event, self.treeview_list[active_tab]))
+
+    def draw_cell_highlight(self, hierarchy_name: ttk.Treeview, width: int, height: int, x_pos: int, y_pos: int):
+        self.cell_highlight = ctk.CTkFrame(hierarchy_name, width=width, height=height, corner_radius=0, fg_color="#AAAAAA")
+        self.cell_highlight.place(x=x_pos, y=y_pos)
+        self.cell_highlight_exists = True
+        self.cell_highlight.bind("<Double-1>", lambda event: self.app_logic.invoke_manage_budget_buttons(event))
+        self.cell_highlight.bind("<Button-1>", lambda event: self.app_logic.invoke_manage_budget_buttons(event))
+        self.after(50, self.set_test_box_focus)
+        self.after(500, self.unbind_single_click)
+        cell_highlight_id = self.cell_highlight.winfo_id()
+        pywinstyles.set_opacity(cell_highlight_id, value=0.1)
+
+    def unbind_single_click(self):
+        try:
+            self.cell_highlight.unbind("<Button-1>")
+        except Exception: #if user clicks a different cell before 500ms timer, the widget was destroyed causing TclError
+            pass 
+
+    def set_test_box_focus(self):
+        self.cell_highlight.focus_set()  
 
     def draw_transaction_list_window(self):
         self.transaction_list_window = TransactionListWindow(self, self.app_logic)
