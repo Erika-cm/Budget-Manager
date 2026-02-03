@@ -687,30 +687,31 @@ class AppLogic():
     def budget_table_double_click(self, event): #NOTE: in manager, we use tags to ID hierarchy level.  That may work here as well (if we can add tags at table creation)
         current_focused_item = self.visual_functions.get_hierarchy_focus(self.budget_table)
         focused_item_grand_grandparent = self.visual_functions.get_hierarchy_item_parent(self.budget_table, self.visual_functions.get_hierarchy_item_parent(self.budget_table, current_focused_item))
+        self.selected_budget_table_row_tags = self.visual_functions.get_hierarchy_content(self.budget_table, self.visual_functions.get_hierarchy_row(self.budget_table, event.y), 'tags')
+        self.selected_budget_table_col = 3-int(self.selected_budget_table_row_tags[0])
+        self.selected_budget_table_row = self.visual_functions.get_hierarchy_row(self.budget_table, event.y)
         if self.visual_functions.get_hierarchy_content(self.budget_table, focused_item_grand_grandparent, 'values') == "":
+            self.create_new_budget_editor.entry_box_exists = False
             return 'break' #user dbl clicked a non-sub-category, do nothing
-        if self.visual_functions.get_hierarchy_content(self.budget_table, focused_item_grand_grandparent, 'values') != "":
-            selected_row_tags = self.visual_functions.get_hierarchy_content(self.budget_table, self.visual_functions.get_hierarchy_row(self.budget_table, event.y), 'tags')
-            self.set_entrybox_location(event, int(selected_row_tags[0]))
+        if self.visual_functions.get_hierarchy_content(self.budget_table, focused_item_grand_grandparent, 'values') != "":            
+            self.create_new_budget_editor.draw_budget_entry_box()            
 
-    def set_entrybox_location(self, event, row_tag_num: int):
-        self.selected_table_col = 3-row_tag_num #this flips the number to ID the proper column
-        self.selected_row = self.visual_functions.get_hierarchy_row(self.budget_table, event.y)
-        box_location = self.visual_functions.draw_hierarchy_bbox(self.budget_table, self.selected_row, col=self.selected_table_col)
+    def set_entrybox_location(self)-> tuple[int, int, int, int]:        
+        box_location = self.visual_functions.draw_hierarchy_bbox(self.budget_table, self.selected_budget_table_row, col=self.selected_budget_table_col)
         #NOTE: the column where the bbox appears is determined by it being monthly or annual, NOT by the location of the dbl click x-axis
         box_location = (
             int(float(box_location[0]) / self.scaling_factor),
             int(float(box_location[1]) / self.scaling_factor),
             int(float(box_location[2]) / self.scaling_factor),
             int(float(box_location[3]) / self.scaling_factor),
-        )
-        self.create_new_budget_editor.draw_budget_entry_box(self.budget_table, box_location[2], box_location[3], box_location[0], box_location[1])
+        )        
+        return box_location
 
     def update_budget_table_entry(self, event, entrybox):
-        selected_row_data = self.visual_functions.get_hierarchy_content(self.budget_table, self.selected_row, 'values')
+        selected_row_data = self.visual_functions.get_hierarchy_content(self.budget_table, self.selected_budget_table_row, 'values')
         try:
-            selected_row_data[self.selected_table_col] = '${:,.2f}'.format(float(self.visual_functions.get_entrybox_content(entrybox)))
-            self.visual_functions.get_hierarchy_item(self.budget_table, self.selected_row, new_values=selected_row_data)
+            selected_row_data[self.selected_budget_table_col] = '${:,.2f}'.format(float(self.visual_functions.get_entrybox_content(entrybox)))
+            self.visual_functions.get_hierarchy_item(self.budget_table, self.selected_budget_table_row, new_values=selected_row_data)
         except ValueError:
             pass
         self.visual_functions.destroy_widget(entrybox)
@@ -790,6 +791,7 @@ class AppLogic():
         self.budget_displayed_in_manager = 0 #indicator: budget is displayed in table
         #self.editor_window_exists: bool = False #keeps track of editor window, to prevent multiple spawns (used when editing more than one transaction)
         self.tab_title_list = ["Annual", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December", "Yearly Total"]
+        self.proper_cell_selected: bool = False
 
     def display_budget_management_table(self, selected_budget_name): #this triggers on raise, load budget, configure treeviews based on # of accounts
         self.budget_section_list = [] #store list of budget sections in treeview (for easy looping across all tabs)
@@ -875,9 +877,12 @@ class AppLogic():
                         if tab_type == "yearly total" and subcat[3] == 1: #add monthly, * 12.  Would yearly total, annuals be caught by the 'else' below?
                             subcat_display[1] = '${:,.2f}'.format(float(subcat[1].replace(",", "").strip("$")) * self.month)
                         elif tab_type == "annual" and subcat[3] == 1 or tab_type == 'monthly' and subcat[3] == 2: #annual tab+monthly subcat or monthly tab+annual subcat 
-                            subcat_display = [subcat_display[i] if i <=1 else "----------" for i in range(len(subcat_display))] 
+                            subcat_display = [subcat_display[i] if i <= 1 else "----------" for i in range(len(subcat_display))] 
                         current_subcat_values = self.visual_functions.insert_into_hierarchy(table, budget_category, 'end', row_values=(subcat_display), display_open=True, tags=(subcat[2], HierarchyLevel.subcategory.value))     
-                        if tab_type == "annual": self.budget_subcat_list.append(current_subcat_values)
+                        if tab_type == "annual": 
+                            self.budget_subcat_list.append(current_subcat_values)
+                category_total_rowdata: list = ["Total"]                
+                self.visual_functions.insert_into_hierarchy(table, budget_category, 'end', row_values=category_total_rowdata, display_open=True, tags=("category total",))
     
     def fetch_transaction_data_from_db(self):
         '''get transaction data from db, match to each tab (annual/month), 
@@ -902,7 +907,7 @@ class AppLogic():
             transactions = non_matched_transactions
             self.add_transaction_data_to_table(table, matched_transactions)
     
-    def add_transaction_data_to_table(self, table, matched_transactions):
+    def add_transaction_data_to_table(self, table, matched_transactions): #called for each treeview/tab
         '''go through all calls in current table, find matching transactions,
         \nupdate account data and calculate row total (if more than one account in budget)
         \nNote: this includes process to reduce the size of matched transactions list as matches are found'''
@@ -927,16 +932,38 @@ class AppLogic():
                         self.calculate_row_totals(subcat_data)
                     matched_transactions = subcat_acct_non_matched_transactions
             self.visual_functions.get_hierarchy_item(table, subcat, new_values=subcat_data)
+        self.calculate_column_subtotals(table, self.budget_section_list[0]) #income
+        self.calculate_column_subtotals(table, self.budget_section_list[1]) #expenses
                     
-    def calculate_row_totals(self, subcat_data: list):
+    def calculate_row_totals(self, subcat_data: list[str]):
         '''loop through each acct/col, destring and add to total, then restring and add to subcat data'''
         row_transaction_total = 0
         for col in range(2, len(self.budget_accounts_data) + 2): 
             row_transaction_total += float(subcat_data[col].replace(",", "").strip("$"))
         subcat_data[-1] = '${:,.2f}'.format(row_transaction_total)
         
+    def calculate_column_subtotals(self, table, section: str): 
+        for cat in self.visual_functions.get_hierarchy_item_children(table, section):
+            cat_values = self.visual_functions.get_hierarchy_content(table, cat, "values")
+            category_totals_list: list[float] = [0 for i in range(len(cat_values)-1)]
+            subcat_items = self.visual_functions.get_hierarchy_item_children(table, cat)
+            for subcat in subcat_items[:-1]: #excludes total row
+                subcat_values: list[str] = self.visual_functions.get_hierarchy_content(table, subcat, "values")
+                for i, col in enumerate(category_totals_list):
+                    if subcat_values[i+1] == "----------" or subcat_values[i+1] == "":
+                        pass #catches non-number cells, dashed or blank NOTE: may want to consider a try except instead
+                    else:
+                        category_totals_list[i] += float(subcat_values[i+1].replace(",", "").strip("$"))                
+            total_row_values = self.visual_functions.get_hierarchy_content(table, subcat_items[-1], "values")
+            for total in category_totals_list:
+                total_row_values.append('${:,.2f}'.format(total))
+            self.visual_functions.get_hierarchy_item(table, subcat_items[-1], new_values=total_row_values)
+        
     def calculate_and_display_yearly_totals(self):
         '''called by event:selection of yearly tab, so totals are calculated only when the tab is selected'''
+        #disable manager window buttons NOTE: when we explore the possibilty of reviewing years transactions from yearly total tab this will have to be changed
+        self.visual_functions.configure_widget(self.nav_panel.add_new_transaction_button, new_state='disabled')
+        self.visual_functions.configure_widget(self.nav_panel.edit_transactions_button, new_state='disabled')
         for column, heading in enumerate(self.budget_table_headings[2:]):
             for subcat in self.budget_subcat_list:
                 current_yearly_total_cell: float = 0.0
@@ -950,6 +977,8 @@ class AppLogic():
                         current_yearly_total_cell += current_cell_flt
                 current_yearly_total_row[column+2] = '${:,.2f}'.format(current_yearly_total_cell)
                 self.visual_functions.get_hierarchy_item(self.manage_budget_table.treeview_list[13], subcat, new_values=current_yearly_total_row)
+        self.calculate_column_subtotals(self.manage_budget_table.treeview_list[-1], self.budget_section_list[0]) #income
+        self.calculate_column_subtotals(self.manage_budget_table.treeview_list[-1], self.budget_section_list[1]) #expenses
     
     def store_budget_structure(self):
         '''stores the structure of the budgets strings, including income/expense, categories, subcategories and annual/monthly,
@@ -973,7 +1002,7 @@ class AppLogic():
                                                                    self.visual_functions.get_active_tab(self.manage_budget_table.manage_budget_tabs))
         if self.budget_displayed_in_manager == 1 and self.current_tab_num != 13: #bind cell click functions, (reset manager buttons to disabled)
             self.set_budget_button_status(False)
-            self.manage_budget_table.set_click_bindings(self.current_tab_num)
+            self.manage_budget_table.set_bindings(self.current_tab_num)
         elif self.budget_displayed_in_manager == 1 and self.current_tab_num == 13: #do not apply bindings to yearly total tab (prevents editing of this treeview)
             self.calculate_and_display_yearly_totals()
     
@@ -983,21 +1012,21 @@ class AppLogic():
         self.selected_column = int(self.visual_functions.id_hierarchy_column(treeview, event.x).strip("#"))
         self.selected_row_item = self.visual_functions.id_hierarchy_row(treeview, event.y)
         #these data are needed for cell based functionality (adding,deleting,editing transactions)
-        self.selected_row_data = self.visual_functions.get_hierarchy_content(treeview, self.selected_row_item, 'values') #store selected row data
-        self.selected_row_tags = self.visual_functions.get_hierarchy_content(treeview, self.selected_row_item, 'tags')
-        self.selected_row_parent = self.visual_functions.get_hierarchy_item_parent(treeview, self.selected_row_item) 
-        self.selected_row_parent_data = self.visual_functions.get_hierarchy_content(treeview, self.selected_row_parent, 'values') #store category data for list and editor windows
-        self.selected_row_parent_tags = self.visual_functions.get_hierarchy_content(treeview, self.selected_row_parent, 'tags')
-        self.selected_row_grandparent = self.visual_functions.get_hierarchy_item_parent(treeview, self.selected_row_parent) 
-        self.selected_row_grandparent_data = self.visual_functions.get_hierarchy_content(treeview, self.selected_row_grandparent, 'values') #store income/expense data for list and editor windows
-        self.selected_row_grandparent_tags = self.visual_functions.get_hierarchy_content(treeview, self.selected_row_grandparent, 'tags')
+        self.selected_row_data: list[str] = self.visual_functions.get_hierarchy_content(treeview, self.selected_row_item, 'values') #store selected row data
+        self.selected_row_tags: list[str] = self.visual_functions.get_hierarchy_content(treeview, self.selected_row_item, 'tags')
+        self.selected_row_parent: str = self.visual_functions.get_hierarchy_item_parent(treeview, self.selected_row_item) 
+        self.selected_row_parent_data: list[str] = self.visual_functions.get_hierarchy_content(treeview, self.selected_row_parent, 'values') #store category data for list and editor windows
+        self.selected_row_grandparent: str = self.visual_functions.get_hierarchy_item_parent(treeview, self.selected_row_parent) 
+        self.selected_row_parent_tags: list[str] = self.visual_functions.get_hierarchy_content(treeview, self.selected_row_parent, 'tags')
+        self.selected_row_grandparent_data: list[str] = self.visual_functions.get_hierarchy_content(treeview, self.selected_row_grandparent, 'values') #store income/expense data for list and editor windows
+        self.selected_row_grandparent_tags: list[str] = self.visual_functions.get_hierarchy_content(treeview, self.selected_row_grandparent, 'tags')
         if self.selected_row_item == "": #non-row item selected, do nothing
             return "break"
         if self.manage_budget_table.cell_highlight_exists == True:
             self.visual_functions.destroy_widget(self.manage_budget_table.cell_highlight)
             self.manage_budget_table.cell_highlight_exists = False 
         self.validate_selected_cell()
-        self.set_selected_cell_location(treeview)
+        self.manage_budget_table.draw_cell_highlight(treeview, self.proper_cell_selected)
         self.set_budget_button_status(self.proper_cell_selected)
 
     def validate_selected_cell(self): #these 3 conditions together indicate a cell was selected that user can add data to, sets selected cell bool as instance var
@@ -1006,19 +1035,15 @@ class AppLogic():
         non_total_col: bool = len(self.selected_row_data) == 3 or len(self.selected_row_data) > 3 and self.selected_column < len(self.selected_row_data)
         self.proper_cell_selected: bool = open_subcat and transaction_column and non_total_col
 
-    def set_selected_cell_location(self, treeview):    
-        if self.proper_cell_selected:
-            cell_location = self.visual_functions.draw_hierarchy_bbox(treeview, self.selected_row_item, self.selected_column-1)
-            cell_location = (
-                            int(float(cell_location[0]) / self.scaling_factor),
-                            int(float(cell_location[1]) / self.scaling_factor),
-                            int(float(cell_location[2]) / self.scaling_factor),
-                            int(float(cell_location[3]) / self.scaling_factor),
-                            )
-            self.manage_budget_table.draw_cell_highlight(treeview, cell_location[2], cell_location[3], cell_location[0], cell_location[1]) 
-
-    def destroy_previous_testbox(self, box):
-        self.visual_functions.destroy_widget(box)
+    def set_selected_cell_location(self, treeview) -> Tuple[int, int, int, int]:            
+        cell_location = self.visual_functions.draw_hierarchy_bbox(treeview, self.selected_row_item, self.selected_column-1)
+        cell_location = (
+                        int(float(cell_location[0]) / self.scaling_factor),
+                        int(float(cell_location[1]) / self.scaling_factor),
+                        int(float(cell_location[2]) / self.scaling_factor),
+                        int(float(cell_location[3]) / self.scaling_factor),
+                        )
+        return cell_location[0], cell_location[1], cell_location[2], cell_location[3]            
         
     def set_budget_button_status(self, proper_cell: bool):
         if proper_cell: #proper cell selected, enable management buttons in nav panel
@@ -1159,11 +1184,9 @@ class AppLogic():
                         other_row_item: str = subcat
                         other_row_data = self.visual_functions.get_hierarchy_content(self.manage_budget_table.treeview_list[new_cell_tabnum], subcat, 'values')
                         break
-                self.update_other_cell(new_cell_tabnum, other_row_item, other_row_data, new_cell_col, self.cell_transactions_from_db[i][-1])
-
-        self.selected_row_data[self.selected_column-1] = "" 
+                self.update_indicated_cell(self.cell_transactions_from_db[i][-1], True, new_cell_tabnum, other_row_item, other_row_data, new_cell_col)
         self.visual_functions.get_hierarchy_item(self.manage_budget_table.treeview_list[self.current_tab_num], self.selected_row_item, new_values=self.selected_row_data)
-        self.update_selected_cell(new_cell_total)
+        self.update_indicated_cell(new_cell_total)
         self.visual_functions.destroy_widget(self.transaction_list_window)
             
     #TRANSACTION EDITOR
@@ -1238,7 +1261,12 @@ class AppLogic():
          \nif list window editbutton: calls edit_transaction_in_list (this may just be a delete func, then the add_new_transaction func)'''
         if self.check_editor_entry_is_number() == True:
             if called_by_manager:
-                self.update_selected_cell(self.transaction_editor_amount)
+                try:
+                    new_cell_total: float = float((self.selected_row_data[self.selected_column-1].replace(",", "").strip("$")))
+                except ValueError:
+                    new_cell_total: float = 0.0
+                new_cell_total += self.transaction_editor_amount
+                self.update_indicated_cell(new_cell_total)
                 new_transaction_data = self.assemble_transaction_data_entry(0)
                 self.modify_budget_database(0, new_transaction_data)
             elif not called_by_manager:
@@ -1250,61 +1278,61 @@ class AppLogic():
             self.close_editor_window(add_new)
         else:
             return "break" #non-number in entry box, confirm btn does nothing
- 
-    def update_other_cell(self, new_tab: int, other_row_item: str, other_row_data: list[str], new_column: int, new_cell_total: float):
-        '''this method adds a single modified transaction's value to the table
-        \n when that transaction is moved from the selected cell.  This is only called by the list window
-        \nother_row_data: extracted from treeview in confirm_transaction_list
-        \nnew_column: extracted from transaction data in self.cell_transactions_from_db (already adjusted to indicate proper index)
-        \nnew_cell_total: same as above'''
-        if other_row_data[new_column] == "": #cell is blank, replace with total from self.cell_
-            new_cell_value: str = '${:,.2f}'.format(round(new_cell_total, 2))
-        else: #cell is not blank, and should be impossible to have a non-number in it
-            old_cell_value: str = other_row_data[new_column]
-            old_cell_value = old_cell_value.replace(",", "").strip("$")
-            new_cell_value: str = '${:,.2f}'.format(round(float(old_cell_value) + new_cell_total, 2))
-        other_row_data[new_column] = new_cell_value
-        #if total col exists, make it blank, loop thru row data cols, adding to new total, add it back to row data and update treeview
-        if len(other_row_data) > 3: 
-            other_row_data[-1] = ""
-            self.visual_functions.get_hierarchy_item(self.manage_budget_table.treeview_list[new_tab], other_row_item, new_values=other_row_data)
-            new_total_flt: float = 0
-            for i, col in enumerate(other_row_data[2:-1]):
-                if col == '': #add formated 0 to other cells in row if they are blank
-                    other_row_data[i+2] = '${:,.2f}'.format(0.00)
-                else:
-                    new_total_flt += float(col.replace(",", "").strip("$"))
-            other_row_data[-1] = '${:,.2f}'.format(round(new_total_flt, 2))
-        self.visual_functions.get_hierarchy_item(self.manage_budget_table.treeview_list[new_tab], other_row_item, new_values=other_row_data)
-        #we need to update self.selected row data here if the only change is the column
-        if self.selected_row_item == other_row_item and new_tab == self.current_tab_num:
-            self.selected_row_data = other_row_data
-
-    def update_selected_cell(self, new_cell_total: float):
+            
+    def update_indicated_cell(self, 
+                             new_cell_total: float, 
+                             non_selected_cell: bool = False, 
+                             new_tab: int = 0, 
+                             other_row_item: str = "",
+                             other_row_data: list[str] = [], 
+                             new_column: int = 0):
         '''this method adds transaction data to the table,
         \ncan be called directly by editor window (passing a single transaction) 
-        \nor by list window (passing the sum total of one or more transactions)'''
-        #NOTE selected row data can change without a 2nd click event, so need to re-get the row data before and after alterations
-        self.selected_row_data = self.visual_functions.get_hierarchy_content(self.manage_budget_table.treeview_list[self.current_tab_num], self.selected_row_item, 'values')
-        if self.selected_row_data[self.selected_column-1] == "": #cell is blank, replace with current entry box var value
-            new_cell_value: str = '${:,.2f}'.format(round(new_cell_total, 2))
-        else: #cell is not blank, and should be impossible to have a non-number in it
-            old_cell_value: str = self.selected_row_data[self.selected_column-1]
-            old_cell_value = old_cell_value.replace(",", "").strip("$")
-            new_cell_value: str = '${:,.2f}'.format(round(float(old_cell_value) + new_cell_total, 2))
-        self.selected_row_data[self.selected_column-1] = new_cell_value
+        \nor by list window (passing the sum total of one or more transactions)
+        \nif non-selected_cell if True, this indicates that the transaction is moving to another cell,
+        \nif this is the case new_tab, other_row_item, other_row_data, and new_colum must be passed as well'''
+        if non_selected_cell == False: #currently selected cell is being updated
+            #NOTE selected row data can change without a 2nd click event, so need to re-get the row data before and after alterations
+            self.selected_row_data: list[str] = self.visual_functions.get_hierarchy_content(self.manage_budget_table.treeview_list[self.current_tab_num], self.selected_row_item, 'values')
+            indicated_treeview = self.manage_budget_table.treeview_list[self.current_tab_num]
+            indicated_row_item: str = self.selected_row_item
+            indicated_row_data: list[str] = self.selected_row_data
+            indicated_column: int = self.selected_column-1
+        elif non_selected_cell == True:
+            indicated_treeview = self.manage_budget_table.treeview_list[new_tab]
+            indicated_row_item = other_row_item
+            indicated_row_data = other_row_data
+            indicated_column = new_column
+        try:
+            old_cell_value: float = float(indicated_row_data[indicated_column].replace(",", "").strip("$"))
+        except ValueError: #cell was a blank string, replace with 0.0
+            old_cell_value = 0.0
+        new_cell_value: str = '${:,.2f}'.format(round(new_cell_total, 2))
+        indicated_row_data[indicated_column] = new_cell_value
+        #update selected col cat subtotal
+        indicated_row_item_parent = self.visual_functions.get_hierarchy_item_parent(indicated_treeview, indicated_row_item)
+        indicated_cell_subtotal_item: str = self.visual_functions.get_hierarchy_item_children(indicated_treeview, indicated_row_item_parent)[-1]
+        indicated_cell_cat_subtotal_data: list[str] = self.visual_functions.get_hierarchy_content(indicated_treeview, indicated_cell_subtotal_item, "values")
+        old_col_total: float = float(indicated_cell_cat_subtotal_data[indicated_column].replace(",", "").strip("$"))
+        new_col_total: float = round(old_col_total + (new_cell_total - old_cell_value), 2)
+        indicated_cell_cat_subtotal_data[indicated_column] = '${:,.2f}'.format(new_col_total)
         #if total col exists, make it blank, loop thru row data cols, adding to new total, add it back to row data and update treeview
-        if len(self.selected_row_data) > 3: 
-            self.selected_row_data[-1] = ""
-            self.visual_functions.get_hierarchy_item(self.manage_budget_table.treeview_list[self.current_tab_num], self.selected_row_item, new_values=self.selected_row_data)
-            new_total_flt: float = 0
-            for i, col in enumerate(self.selected_row_data[2:-1]):
+        if len(indicated_row_data) > 3:             
+            new_total_flt: float = 0.0
+            new_subtotal_total: float = 0.0
+            for i, col in enumerate(indicated_row_data[2:-1]):
                 if col == '': #add formated 0 to other cells in row if they are blank
-                    self.selected_row_data[i+2] = '${:,.2f}'.format(0.00)
+                    indicated_row_data[i+2] = '${:,.2f}'.format(0.00)
                 else:
                     new_total_flt += float(col.replace(",", "").strip("$"))
-            self.selected_row_data[-1] = '${:,.2f}'.format(round(new_total_flt, 2))
-        self.visual_functions.get_hierarchy_item(self.manage_budget_table.treeview_list[self.current_tab_num], self.selected_row_item, new_values=self.selected_row_data)
+                    new_subtotal_total += float(indicated_cell_cat_subtotal_data[i+2].replace(",", "").strip("$"))
+            indicated_row_data[-1] = '${:,.2f}'.format(round(new_total_flt, 2))
+            indicated_cell_cat_subtotal_data[-1] = '${:,.2f}'.format(round(new_subtotal_total, 2))        
+        self.visual_functions.get_hierarchy_item(indicated_treeview, indicated_row_item, new_values=indicated_row_data)
+        self.visual_functions.get_hierarchy_item(indicated_treeview, indicated_cell_subtotal_item, new_values=indicated_cell_cat_subtotal_data)
+         #we need to update self.selected row data here if the only cell change is the column
+        if non_selected_cell == True and self.selected_row_item == other_row_item and new_tab == self.current_tab_num:
+            self.selected_row_data = other_row_data
 
     def modify_budget_database(self, modification: int, transaction_entry: tuple):
         '''this method modifies the budget sql database, taking a tuple containing the data for the transaction.

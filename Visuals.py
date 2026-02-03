@@ -227,7 +227,8 @@ class VisualFunctions(ctk.CTkBaseClass):
         hierarchy_name.configure(columns=columns)
 
     def draw_hierarchy_bbox(self, hierarchy_name: ttk.Treeview, item_name: str, col: str | int) -> tuple[int, int, int, int] | Literal['']:
-        '''returns location and dimensions of a bounding box, for a treeview item, and specificly for the seleted cell if col is specified'''
+        '''returns location and dimensions of a bounding box, for a treeview item, and specificly for the seleted cell if col is specified
+        \nreturns x, y, width, height'''
         return hierarchy_name.bbox(item=item_name, column=col)
     
     def set_hierarchy_column_options(self, hierarchy_name: ttk.Treeview, column: str | int, width: int | None = None, minwidth: int | None = None, stretch: bool | None = None) -> None:
@@ -630,6 +631,7 @@ class EditBudget(ctk.CTkFrame):
         #variables
         self.app_logic = app_logic
         self.page_func = app_logic.display_budget_table
+        self.entry_box_exists: bool = False
 
         #widgets
         self.enter_budget_amounts_label = ctk.CTkLabel(self, text="Enter Monthly and Annual Budget Amounts", text_color="#00aaff", font=('calibri', 35))
@@ -643,7 +645,7 @@ class EditBudget(ctk.CTkFrame):
         self.budget_table.heading('monthly', text="Monthly Amount")
         self.budget_table.column('annual', anchor='center')
         self.budget_table.column('monthly', anchor='center')
-        self.budget_table_scrollbar = ctk.CTkScrollbar(self.budget_table_frame, command=self.budget_table.yview)
+        self.budget_table_scrollbar = ctk.CTkScrollbar(self.budget_table_frame, command=self.drag_scrollbar)
 
         #layout
         self.enter_budget_amounts_label.grid(row=0, column=0, sticky='new')
@@ -658,20 +660,44 @@ class EditBudget(ctk.CTkFrame):
 
         #events
         self.budget_table.bind("<Double-1>", lambda event: self.app_logic.budget_table_double_click(event))
+        self.budget_table.bind("<MouseWheel>", lambda event: self.treeview_scroll(event))
 
     #methods
     #create entry boxes on dbl click
-    def draw_budget_entry_box(self, hierarchy_name: ttk.Treeview, width: int, height: int, x_pos: int, y_pos: int):
-        self.budget_entry = ctk.CTkEntry(hierarchy_name, width=width, height=height)
-        self.budget_entry.place(x=x_pos, y=y_pos)
+    def draw_budget_entry_box(self):
+        self.box_x_pos, self.box_y_pos, self.box_width, self.box_height = self.app_logic.set_entrybox_location()
+        self.budget_entry = ctk.CTkEntry(self.budget_table, width=self.box_width, height=self.box_height)
+        self.budget_entry.place(x=self.box_x_pos, y=self.box_y_pos)
+        self.entry_box_exists = True
         self.budget_entry.focus()
         self.budget_entry.bind("<Return>", lambda event: self.app_logic.update_budget_table_entry(event, self.budget_entry))
         self.budget_entry.bind("<FocusOut>", lambda event: self.app_logic.update_budget_table_entry(event, self.budget_entry))
-    
+
+    def drag_scrollbar(self, *args): 
+        self.budget_table.yview(*args)
+        if self.entry_box_exists:
+            try:
+                self.box_x_pos, self.box_y_pos, self.box_width, self.box_height = self.app_logic.set_entrybox_location()
+                self.budget_entry.place(x=self.box_x_pos, y=self.box_y_pos)
+            except IndexError:
+                self.budget_entry.place_forget() #selected cell out of view, unmap entry box
+                
+    def treeview_scroll(self, event): 
+        '''reads current position of the top and bottom of the scrollbar, 
+        \nthen if not at the top/bottom, adjusts the cell highlight by the cell height 
+        \n(this is how much the treeview scrolls per mousewheel tick)'''       
+        y_top, y_bottom = self.budget_table.yview()
+        if self.entry_box_exists:       
+            if event.delta < 0 and y_bottom < 1: #scrolling down and not at bottom, adjust y up 
+                self.box_y_pos -= self.box_height   
+                self.budget_entry.place(x=self.box_x_pos, y=self.box_y_pos)
+            elif event.delta > 0 and y_top > 0: #scrolling up, adjust y down
+                self.box_y_pos += self.box_height
+                self.budget_entry.place(x=self.box_x_pos, y=self.box_y_pos)
+        else: pass
+
     def raise_blank_cells_error(self):
         self.blank_cells_window = EditBudgetBlankCellsWindow(self, self.app_logic)
-
-    #save budget window
 
 class EditBudgetBlankCellsWindow(ctk.CTkToplevel):
     def __init__(self, parent, app_logic: AppLogic):
@@ -894,7 +920,9 @@ class ManageBudget(ctk.CTkFrame):
         self.app_logic = app_logic
         self.cell_highlight_exists: bool = False
         self.page_func = app_logic.check_and_store_selected_budget
-
+        self.drag_scrollbar_ytop: float = 1.0
+        self.drag_scrollbar_ybottom: float = 1.0
+        
         #widgets
         self.manage_budget_label = ctk.CTkLabel(self, text="Manage Budget: no budget selected", text_color="#00aaff", font=('calibri', 24))
         
@@ -908,7 +936,7 @@ class ManageBudget(ctk.CTkFrame):
         self.treeview_list: list[ttk.Treeview] = []
         for tab in self.tab_list:
             self.budget_table = ttk.Treeview(tab, show='headings', style="Treeview")
-            self.budget_table_scrollbar = ctk.CTkScrollbar(tab, command=self.budget_table.yview)
+            self.budget_table_scrollbar = ctk.CTkScrollbar(tab, command=self.drag_scrollbar)
             self.treeview_list.append(self.budget_table)
             self.budget_table_scrollbar.pack(side='right', fill='y')
             self.budget_table.pack(side='left', expand=True, fill='both', pady=5, padx=5)
@@ -921,22 +949,49 @@ class ManageBudget(ctk.CTkFrame):
 
         app_logic.add_to_nav_map(system_name.value, self, self.page_func)
         visual_theme.apply_style_table(self)
-        self.set_click_bindings(0) #NOTE: if default tab is ever set by date or last user interaction, this 0 will need to be set by that functionality
+        self.set_bindings(0) #NOTE: if default tab is ever set by date or last user interaction, this 0 will need to be set by that functionality
 
     #events
-    def set_click_bindings(self, active_tab: int):
+    def set_bindings(self, active_tab: int):
         self.treeview_list[active_tab].bind("<Button-1>", lambda event: self.app_logic.budget_manager_single_click(event, self.treeview_list[active_tab]))
+        self.treeview_list[active_tab].bind("<MouseWheel>", lambda event: self.treeview_scroll(event))
 
-    def draw_cell_highlight(self, hierarchy_name: ttk.Treeview, width: int, height: int, x_pos: int, y_pos: int):
-        self.cell_highlight = ctk.CTkFrame(hierarchy_name, width=width, height=height, corner_radius=0, fg_color="#AAAAAA")
-        self.cell_highlight.place(x=x_pos, y=y_pos)
-        self.cell_highlight_exists = True
-        self.cell_highlight.bind("<Double-1>", lambda event: self.app_logic.invoke_manage_budget_buttons(event))
-        self.cell_highlight.bind("<Button-1>", lambda event: self.app_logic.invoke_manage_budget_buttons(event))
-        self.after(50, self.set_test_box_focus)
-        self.after(500, self.unbind_single_click)
-        cell_highlight_id = self.cell_highlight.winfo_id()
-        pywinstyles.set_opacity(cell_highlight_id, value=0.1)
+    def draw_cell_highlight(self, hierarchy_name: ttk.Treeview, proper_cell: bool):
+        if proper_cell:
+            self.cell_x_pos, self.cell_y_pos, self.cell_width, self.cell_height = self.app_logic.set_selected_cell_location(hierarchy_name)
+            self.cell_highlight = ctk.CTkFrame(hierarchy_name, width=self.cell_width, height=self.cell_height, corner_radius=0, fg_color="#AAAAAA")
+            self.cell_highlight.place(x=self.cell_x_pos, y=self.cell_y_pos)
+            self.cell_highlight_exists = True
+            self.cell_highlight.bind("<Double-1>", lambda event: self.app_logic.invoke_manage_budget_buttons(event))
+            self.cell_highlight.bind("<Button-1>", lambda event: self.app_logic.invoke_manage_budget_buttons(event))
+            self.after(50, self.set_cell_highlight_focus)
+            self.after(500, self.unbind_single_click)
+            cell_highlight_id = self.cell_highlight.winfo_id()
+            pywinstyles.set_opacity(cell_highlight_id, value=0.1)
+        else: pass
+
+    def drag_scrollbar(self, *args):
+        self.treeview_list[self.app_logic.current_tab_num].yview(*args)
+        if self.cell_highlight_exists:
+            try:
+                self.cell_x_pos, self.cell_y_pos, self.cell_width, self.cell_height = self.app_logic.set_selected_cell_location(self.treeview_list[self.app_logic.current_tab_num])
+                self.cell_highlight.place(x=self.cell_x_pos, y=self.cell_y_pos)
+            except IndexError:
+                self.cell_highlight.place_forget() #selected cell out of view, unmap cell highlight
+                
+    def treeview_scroll(self, event): 
+        '''reads current position of the top and bottom of the scrollbar, 
+        \nthen if not at the top/bottom, adjusts the cell highlight by the cell height 
+        \n(this is how much the treeview scrolls per mousewheel tick)'''       
+        y_top, y_bottom = self.treeview_list[self.app_logic.current_tab_num].yview()
+        if self.cell_highlight_exists:       
+            if event.delta < 0 and y_bottom < 1: #scrolling down and not at bottom, adjust y up 
+                self.cell_y_pos -= self.cell_height   
+                self.cell_highlight.place(x=self.cell_x_pos, y=self.cell_y_pos)
+            elif event.delta > 0 and y_top > 0: #scrolling up, adjust y down
+                self.cell_y_pos += self.cell_height
+                self.cell_highlight.place(x=self.cell_x_pos, y=self.cell_y_pos)
+        else: pass
 
     def unbind_single_click(self):
         try:
@@ -944,7 +999,7 @@ class ManageBudget(ctk.CTkFrame):
         except Exception: #if user clicks a different cell before 500ms timer, the widget was destroyed causing TclError
             pass 
 
-    def set_test_box_focus(self):
+    def set_cell_highlight_focus(self):
         self.cell_highlight.focus_set()  
 
     def draw_transaction_list_window(self):
