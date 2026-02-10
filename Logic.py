@@ -873,7 +873,7 @@ class AppLogic():
                 self.display_budget_category_data(table, budget_section, budget_section_id, 'yearly total')
                
     def display_budget_category_data(self, table, budget_section: str, inc_exp_id: str, tab_type: Literal['annual'] | Literal['monthly'] | Literal['yearly total']):
-        '''This inserts the category labels, sub-category labels and their budget amounts to the manager tables'''
+        '''This inserts the budget template (category labels, sub-category labels and their budget amounts) to the manager tables'''
         for category in self.category_data:
             if category[1] == inc_exp_id: #is cat income or expense
                 budget_category_labels = [category[0]]
@@ -1035,7 +1035,7 @@ class AppLogic():
     def budget_manager_single_click(self, event, treeview):
         '''Stores data on the cell selected by single click
         \nNOTE the word "Total" is stripped from selected_row_grandparent_data because it doesn't belong in the transaction editor/list windows'''
-        #ID selected row & col
+        #ID selected row & col (converted from treeview number to 0 indexed version (the -1))
         self.selected_column = int(self.visual_functions.id_hierarchy_column(treeview, event.x).strip("#"))-1
         self.selected_row_item = self.visual_functions.id_hierarchy_row(treeview, event.y)
         if self.selected_row_item == "": #non-row item selected, do nothing
@@ -1063,7 +1063,12 @@ class AppLogic():
         self.manage_budget_table.draw_cell_highlight(treeview, self.proper_cell_selected)
         self.set_budget_button_status(self.proper_cell_selected)
 
-    def validate_selected_cell(self): #these 3 conditions together indicate a cell was selected that user can add data to, sets selected cell bool as instance var
+    def validate_selected_cell(self): 
+        '''these 3 conditions together indicate a cell was selected that user can add data to, sets selected cell bool as instance var
+        \nopen_subcat: selected row is a sub-category AND it is not dashed out (indicating annual/monthly)
+        \ntransaction_column: seletected column is not the row label, Nor the budgeted amount col
+        \nnon-total_col: captures 2 scenarios 1-budget has one account, and user did not selected the shortfall/surplus column (indicated by -1)
+        \n2-budget has more than one account, and user did not select the shortfall/surplus column or the total column (indicated by -2)'''
         open_subcat: bool =  self.selected_row_tags[-1] == HierarchyLevel.subcategory.value and self.selected_row_data[self.selected_column] != "----------" 
         transaction_column: bool =  self.selected_column > 1
         non_total_col: bool = len(self.selected_row_data) == 3 or len(self.selected_row_data) > 3 and self.selected_column < len(self.selected_row_data)-1
@@ -1359,11 +1364,11 @@ class AppLogic():
             new_section_total: float = 0.0
             for i, col in enumerate(indicated_row_data[2:-1]):
                 if col == '': #add formated 0 to other cells in row if they are blank
-                    indicated_row_data[i+2] = '${:,.2f}'.format(0.00)
+                    indicated_row_data[i+2] = '${:,.2f}'.format(0.00)                                        
                 else:
                     new_total_flt += float(col.replace(",", "").strip("$"))
-                    new_subtotal_total += float(indicated_cell_cat_subtotal_data[i+2].replace(",", "").strip("$"))
-                    new_section_total += float(indicated_row_section_data[i+2].replace(",", "").strip("$"))
+                new_subtotal_total += float(indicated_cell_cat_subtotal_data[i+2].replace(",", "").strip("$")) #these totals are never ''
+                new_section_total += float(indicated_row_section_data[i+2].replace(",", "").strip("$"))
             indicated_row_data[-1] = '${:,.2f}'.format(round(new_total_flt, 2))
             indicated_cell_cat_subtotal_data[-1] = '${:,.2f}'.format(round(new_subtotal_total, 2)) 
             indicated_row_section_data[-1] = '${:,.2f}'.format(round(new_section_total, 2)) 
@@ -1388,7 +1393,8 @@ class AppLogic():
     def update_budget_totals_data(self, indicated_treeview_item: str, indicated_treeview, indicated_column: int, new_cell_total: float, old_cell_value: float)-> list[str]:
         '''calculates either new category subotal values or section total values when a cell is modified
         \nonly used by update_indicated_cell()'''
-        indicated_total_data = self.visual_functions.get_hierarchy_content(indicated_treeview, indicated_treeview_item, "values")
+        indicated_total_data: list[str] = self.visual_functions.get_hierarchy_content(indicated_treeview, indicated_treeview_item, "values")
+        #update the col being altered
         old_col_total: float = float(indicated_total_data[indicated_column].replace(",", "").strip("$"))
         new_col_total: float = round(old_col_total + (new_cell_total - old_cell_value), 2)
         indicated_total_data[indicated_column] = '${:,.2f}'.format(new_col_total)
