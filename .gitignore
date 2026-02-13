@@ -6,5 +6,15 @@ prototype creating list of dataframes in a loop.py
 prototype looping through list of dataframe names.py
 prototype user entry of budget amounts.py
 Budget Manager Visuals.free
+budget templates.json
 *.sqlite
 *.iss
+*.toc
+*.pyc
+*.zip
+*.html
+*.txt
+*.pyz
+*.spec
+*.pkg
+*.exe

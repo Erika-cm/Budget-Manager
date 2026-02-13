@@ -214,12 +214,12 @@ class VisualFunctions(ctk.CTkBaseClass):
     def set_hierarchy_single_selection(self, hierarchy_name: ttk.Treeview, item: str| int):
         hierarchy_name.selection_set(item)
 
-    def configure_hierarchy_values(self, hierarchy_name: ttk.Treeview, font_name: str, font_family: str = "Calibri", size: int = 12, font_modifier: str = ""):
+    def configure_hierarchy_values(self, hierarchy_name: ttk.Treeview, font_name: str, font_family: str = "Calibri", size: int = 12, font_modifier: str = "", text_color: str = ""):
         '''configures a font that can be applied to the inserted values for the indicated treeview
          \napplied using tags= option in .insert (.insert_into_hierarchy) or .item(.get_hierarchy_item) methods (uses tag_configure)
          \n to apply: hierarchy_name.insert("", 'end', values=(text to be entered), tags = (font name (as a string),))
         \nfont modifiers: bold, italic, underline, overstrike'''
-        hierarchy_name.tag_configure(font_name, font=(font_family, size, font_modifier))
+        hierarchy_name.tag_configure(font_name, font=(font_family, size, font_modifier), foreground=text_color)
 
     def configure_hierarchy_options(self, hierarchy_name: ttk.Treeview, columns: str | list[str] | list[int]):
         '''set widget options for a ttk.Treeview
@@ -342,6 +342,7 @@ class VisualThemes(ctk.CTkBaseClass):
         self.template_table_style.theme_use('default')
         self.template_table_style.configure("Treeview", fieldbackground=self.bg_color_table, background=self.bg_color_table, foreground=self.text_color_table, font=('calibri', 15), borderwidth=0, rowheight=28)
         self.template_table_style.configure("Treeview.Heading", borderwidth=1, relief="ridge", background=self.bg_color_table, foreground=self.text_color_table, font=('calibri', 15))
+        self.template_table_style.configure("Treeview.Heading", font=("Calibri", 14))
         self.template_table_style.map("Treeview", background=[("selected", "#303030")], foreground=[("selected", self.selected_color_table)]) #unlike hierarchy, selected cell should be lighter than ctkframe default color
 
 class NavigationPanel(ctk.CTkFrame):
@@ -912,9 +913,10 @@ class ManageBudget(ctk.CTkFrame):
     def __init__(self, parent, system_name: SystemNames, app_logic: AppLogic, visual_theme: VisualThemes):
         super().__init__(master=parent)
         self.configure(corner_radius = 0)
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)    
-        self.grid_rowconfigure(1, weight=50) 
+        self.grid_columnconfigure((0,1), weight=1)
+        self.grid_rowconfigure(0, weight=1) 
+        self.grid_rowconfigure(1, weight=1)    
+        self.grid_rowconfigure(2, weight=50) 
 
         #variables
         self.app_logic = app_logic
@@ -922,39 +924,63 @@ class ManageBudget(ctk.CTkFrame):
         self.page_func = app_logic.check_and_store_selected_budget
         self.drag_scrollbar_ytop: float = 1.0
         self.drag_scrollbar_ybottom: float = 1.0
-        
+        self.treeview_list: list[ttk.Treeview] = []
+        self.scrollbar_list: list[ctk.CTkScrollbar] = []
+
         #widgets
         self.manage_budget_label = ctk.CTkLabel(self, text="Manage Budget: no budget selected", text_color="#00aaff", font=('calibri', 24))
+        self.budgeted_surplus_shortfall_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.budgeted_surplus_shortfall_label = ctk.CTkLabel(self.budgeted_surplus_shortfall_frame, text="Budgeted Surplus/Shortfall: ", text_color="#cccccc", font=("Calibri", 18))
+        self.budgeted_surplus_shortfall_amount = ctk.CTkLabel(self.budgeted_surplus_shortfall_frame, text="$0.00", font=("Calibri", 18), fg_color="#272727")
+        self.actual_surplus_shortfall_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.actual_surplus_shortfall_label = ctk.CTkLabel(self.actual_surplus_shortfall_frame, text="Actual Surplus/Shortfall: ", text_color="#cccccc", font=("Calibri", 18))
+        self.actual_surplus_shortfall_amount = ctk.CTkLabel(self.actual_surplus_shortfall_frame, text="$0.00", font=("Calibri", 18), fg_color="#272727")
         
         self.manage_budget_table_frame = ctk.CTkFrame(self)
         self.manage_budget_tabs = ctk.CTkTabview(self.manage_budget_table_frame, command=app_logic.set_active_treeview)
         self.tab_list = []
         for tab in self.app_logic.tab_title_list:
             new_tab = self.manage_budget_tabs.add(tab)
-            self.tab_list.append(new_tab)
-    
-        self.treeview_list: list[ttk.Treeview] = []
-        for tab in self.tab_list:
-            self.budget_table = ttk.Treeview(tab, show='headings', style="Treeview")
-            self.budget_table_scrollbar = ctk.CTkScrollbar(tab, command=self.drag_scrollbar)
-            self.treeview_list.append(self.budget_table)
-            self.budget_table_scrollbar.pack(side='right', fill='y')
-            self.budget_table.pack(side='left', expand=True, fill='both', pady=5, padx=5)
-            self.budget_table.configure(yscrollcommand=self.budget_table_scrollbar.set)
+            self.tab_list.append(new_tab)      
         
         #layout
-        self.manage_budget_label.grid(row=0, column=0, sticky='new')
-        self.manage_budget_table_frame.grid(row=1, column=0, padx=80, sticky='nsew')
+        self.manage_budget_label.grid(row=0, column=0, columnspan=2, sticky='new')
+
+        self.budgeted_surplus_shortfall_frame.grid(row=1, column=0, sticky="ne", padx=10, pady=2)        
+        self.budgeted_surplus_shortfall_amount.pack(side="right", padx=2, pady=2)
+        self.budgeted_surplus_shortfall_label.pack(side="right", padx=2, pady=2)
+        self.actual_surplus_shortfall_frame.grid(row=1, column=1, sticky="nw", padx=10, pady=2)
+        self.actual_surplus_shortfall_label.pack(side="left", padx=2, pady=2)
+        self.actual_surplus_shortfall_amount.pack(side="left", padx=2, pady=2)
+        
+        self.manage_budget_table_frame.grid(row=2, column=0, columnspan=2, padx=10, sticky='nsew')
         self.manage_budget_tabs.pack(expand=True, fill='both', pady=5, padx=5)
 
         app_logic.add_to_nav_map(system_name.value, self, self.page_func)
         visual_theme.apply_style_table(self)
-        self.set_bindings(0) #NOTE: if default tab is ever set by date or last user interaction, this 0 will need to be set by that functionality
+        
+    #methods and events
+    def create_management_treeviews(self):
+        for tab in self.tab_list:
+            self.budget_table = ttk.Treeview(tab, show='headings', style="Treeview")         
+            self.budget_table_scrollbar = ctk.CTkScrollbar(tab, command=self.drag_scrollbar)
+            self.treeview_list.append(self.budget_table) 
+            self.scrollbar_list.append(self.budget_table_scrollbar)         
+            self.budget_table_scrollbar.pack(side='right', fill='y')
+            self.budget_table.pack(side='left', expand=True, fill='both', pady=5, padx=5)          
+            self.budget_table.configure(yscrollcommand=self.budget_table_scrollbar.set)   
+            self.set_bindings(0) #NOTE: if default tab is ever set by date or last user interaction, this 0 will need to be set by that functionality
 
-    #events
+    def destroy_management_treeviews(self):
+        for treeview, scrollbar in zip(self.treeview_list, self.scrollbar_list):
+            treeview.destroy()
+            scrollbar.destroy()
+        self.treeview_list = []
+        self.scrollbar_list = []
+
     def set_bindings(self, active_tab: int):
         self.treeview_list[active_tab].bind("<Button-1>", lambda event: self.app_logic.budget_manager_single_click(event, self.treeview_list[active_tab]))
-        self.treeview_list[active_tab].bind("<MouseWheel>", lambda event: self.treeview_scroll(event))
+        self.treeview_list[active_tab].bind("<MouseWheel>", lambda event: self.treeview_scroll(event)) #also bind to summary columns?
 
     def draw_cell_highlight(self, hierarchy_name: ttk.Treeview, proper_cell: bool):
         if proper_cell:

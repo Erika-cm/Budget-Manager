@@ -1,130 +1,5 @@
 [
     {
-        "Title": "User Template 1",
-        "Income": {
-            "All Income": [
-                [
-                    "Employment",
-                    "Rent",
-                    "Other"
-                ],
-                [
-                    1,
-                    2,
-                    1
-                ]
-            ]
-        },
-        "Expenses": {
-            "Housing": [
-                [
-                    "Condo Fees",
-                    "Utilities",
-                    "Phone",
-                    "Internet",
-                    "TV/Streaming Services",
-                    "Maintenance",
-                    "Home Insurance",
-                    "Other"
-                ],
-                [
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1
-                ]
-            ],
-            "Regular Living Expenses": [
-                [
-                    "Groceries",
-                    "Delivery/Take Out",
-                    "Coffee/Treats",
-                    "Hygeine and Personal Grooming",
-                    "Appliances",
-                    "Computer Parts",
-                    "Entertainment",
-                    "Hobbies and Skill Development",
-                    "Bank/Credit Card Fees",
-                    "Taxes",
-                    "Other"
-                ],
-                [
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    2,
-                    1
-                ]
-            ],
-            "Transportation": [
-                [
-                    "Transit Pass",
-                    "Car Share Services",
-                    "Fuel",
-                    "Insurance",
-                    "Maintenance",
-                    "Parking"
-                ],
-                [
-                    1,
-                    1,
-                    1,
-                    2,
-                    1,
-                    1
-                ]
-            ],
-            "Clothing": [
-                [
-                    "Everyday Use",
-                    "Special Occasion",
-                    "Other"
-                ],
-                [
-                    1,
-                    1,
-                    1
-                ]
-            ],
-            "Medical": [
-                [
-                    "Insurance (life)",
-                    "Insurance (Medical)",
-                    "Prescription Drugs",
-                    "Over the Counter Drugs",
-                    "Medical Services",
-                    "Paramedical Services",
-                    "Dental",
-                    "Vision Care",
-                    "Skin Care",
-                    "Other"
-                ],
-                [
-                    2,
-                    2,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1
-                ]
-            ]
-        }
-    },
-    {
         "Title": "User Template 2",
         "Income": {
             "All Income": [
@@ -250,19 +125,17 @@
         }
     },
     {
-        "Title": "Default2",
+        "Title": "User Template 34",
         "Income": {
             "All Income": [
                 [
                     "Employment",
                     "Rent",
-                    "Investments",
                     "Other"
                 ],
                 [
                     1,
                     2,
-                    1,
                     1
                 ]
             ]
@@ -270,7 +143,7 @@
         "Expenses": {
             "Housing": [
                 [
-                    "Rent",
+                    "Condo Fees",
                     "Utilities",
                     "Phone",
                     "Internet",
@@ -286,11 +159,11 @@
                     1,
                     1,
                     1,
-                    2,
+                    1,
                     1
                 ]
             ],
-            "Common Living Expenses": [
+            "Regular Living Expenses": [
                 [
                     "Groceries",
                     "Delivery/Take Out",
@@ -377,7 +250,132 @@
         }
     },
     {
-        "Title": "Default3",
+        "Title": "User Template 1",
+        "Income": {
+            "All Income": [
+                [
+                    "Employment",
+                    "Rent",
+                    "Other"
+                ],
+                [
+                    1,
+                    2,
+                    1
+                ]
+            ]
+        },
+        "Expenses": {
+            "Housing": [
+                [
+                    "Condo Fees",
+                    "Utilities",
+                    "Phone",
+                    "Internet",
+                    "TV/Streaming Services",
+                    "Maintenance",
+                    "Home Insurance",
+                    "Other"
+                ],
+                [
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1
+                ]
+            ],
+            "Regular Living Expenses": [
+                [
+                    "Groceries",
+                    "Delivery/Take Out",
+                    "Coffee/Treats",
+                    "Hygeine and Personal Grooming",
+                    "Appliances",
+                    "Computer Parts",
+                    "Entertainment",
+                    "Hobbies and Skill Development",
+                    "Bank/Credit Card Fees",
+                    "Taxes",
+                    "Other"
+                ],
+                [
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    2,
+                    1
+                ]
+            ],
+            "Transportation": [
+                [
+                    "Transit Pass",
+                    "Car Share Services",
+                    "Fuel",
+                    "Insurance",
+                    "Maintenance",
+                    "Parking"
+                ],
+                [
+                    1,
+                    1,
+                    1,
+                    2,
+                    1,
+                    1
+                ]
+            ],
+            "Clothing": [
+                [
+                    "Everyday Use",
+                    "Special Occasion",
+                    "Other"
+                ],
+                [
+                    1,
+                    1,
+                    1
+                ]
+            ],
+            "Medical": [
+                [
+                    "Insurance (life)",
+                    "Insurance (Medical)",
+                    "Prescription Drugs",
+                    "Over the Counter Drugs",
+                    "Medical Services",
+                    "Paramedical Services",
+                    "Dental",
+                    "Vision Care",
+                    "Skin Care",
+                    "Other"
+                ],
+                [
+                    2,
+                    2,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1
+                ]
+            ]
+        }
+    },
+    {
+        "Title": "Default2",
         "Income": {
             "All Income": [
                 [
@@ -629,510 +627,6 @@
         }
     },
     {
-        "Title": "name ",
-        "Income": {
-            "All Income": [
-                [
-                    "Employment",
-                    "Rent",
-                    "Investments",
-                    "Other"
-                ],
-                [
-                    1,
-                    2,
-                    1,
-                    1
-                ]
-            ]
-        },
-        "Expenses": {
-            "Housing": [
-                [
-                    "Rent",
-                    "Utilities",
-                    "Phone",
-                    "Internet",
-                    "TV/Streaming Services",
-                    "Maintenance",
-                    "Home Insurance",
-                    "Other"
-                ],
-                [
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    2,
-                    1
-                ]
-            ],
-            "Common Living Expenses": [
-                [
-                    "Groceries",
-                    "Delivery/Take Out",
-                    "Coffee/Treats",
-                    "Hygeine and Personal Grooming",
-                    "Appliances",
-                    "Computer Parts",
-                    "Entertainment",
-                    "Hobbies and Skill Development",
-                    "Bank/Credit Card Fees",
-                    "Taxes",
-                    "Other"
-                ],
-                [
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    2,
-                    1
-                ]
-            ],
-            "Transportation": [
-                [
-                    "Transit Pass",
-                    "Car Share Services",
-                    "Fuel",
-                    "Insurance",
-                    "Maintenance",
-                    "Parking"
-                ],
-                [
-                    1,
-                    1,
-                    1,
-                    2,
-                    1,
-                    1
-                ]
-            ],
-            "Clothing": [
-                [
-                    "Everyday Use",
-                    "Special Occasion",
-                    "Other"
-                ],
-                [
-                    1,
-                    1,
-                    1
-                ]
-            ],
-            "Medical": [
-                [
-                    "Insurance (life)",
-                    "Insurance (Medical)",
-                    "Prescription Drugs",
-                    "Over the Counter Drugs",
-                    "Medical Services",
-                    "Paramedical Services",
-                    "Dental",
-                    "Vision Care",
-                    "Skin Care",
-                    "Other"
-                ],
-                [
-                    2,
-                    2,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1
-                ]
-            ]
-        }
-    },
-    {
-        "Title": "Default exe test",
-        "Income": {
-            "All Income": [
-                [
-                    "Employment",
-                    "Rent",
-                    "Investments",
-                    "Other"
-                ],
-                [
-                    1,
-                    2,
-                    1,
-                    1
-                ]
-            ]
-        },
-        "Expenses": {
-            "Housing": [
-                [
-                    "Rent",
-                    "Utilities",
-                    "Phone",
-                    "Internet",
-                    "TV/Streaming Services",
-                    "Maintenance",
-                    "Home Insurance",
-                    "Other"
-                ],
-                [
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    2,
-                    1
-                ]
-            ],
-            "Common Living Expenses": [
-                [
-                    "Groceries",
-                    "Delivery/Take Out",
-                    "Coffee/Treats",
-                    "Hygeine and Personal Grooming",
-                    "Appliances",
-                    "Computer Parts",
-                    "Entertainment",
-                    "Hobbies and Skill Development",
-                    "Bank/Credit Card Fees",
-                    "Taxes",
-                    "Other"
-                ],
-                [
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    2,
-                    1
-                ]
-            ],
-            "Transportation": [
-                [
-                    "Transit Pass",
-                    "Car Share Services",
-                    "Fuel",
-                    "Insurance",
-                    "Maintenance",
-                    "Parking"
-                ],
-                [
-                    1,
-                    1,
-                    1,
-                    2,
-                    1,
-                    1
-                ]
-            ],
-            "Clothing": [
-                [
-                    "Everyday Use",
-                    "Special Occasion",
-                    "Other"
-                ],
-                [
-                    1,
-                    1,
-                    1
-                ]
-            ],
-            "Medical": [
-                [
-                    "Insurance (life)",
-                    "Insurance (Medical)",
-                    "Prescription Drugs",
-                    "Over the Counter Drugs",
-                    "Medical Services",
-                    "Paramedical Services",
-                    "Dental",
-                    "Vision Care",
-                    "Skin Care",
-                    "Other"
-                ],
-                [
-                    2,
-                    2,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1
-                ]
-            ]
-        }
-    },
-    {
-        "Title": "User Template 34",
-        "Income": {
-            "All Income": [
-                [
-                    "Employment",
-                    "Rent",
-                    "Other"
-                ],
-                [
-                    1,
-                    2,
-                    1
-                ]
-            ]
-        },
-        "Expenses": {
-            "Housing": [
-                [
-                    "Condo Fees",
-                    "Utilities",
-                    "Phone",
-                    "Internet",
-                    "TV/Streaming Services",
-                    "Maintenance",
-                    "Home Insurance",
-                    "Other"
-                ],
-                [
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1
-                ]
-            ],
-            "Regular Living Expenses": [
-                [
-                    "Groceries",
-                    "Delivery/Take Out",
-                    "Coffee/Treats",
-                    "Hygeine and Personal Grooming",
-                    "Appliances",
-                    "Computer Parts",
-                    "Entertainment",
-                    "Hobbies and Skill Development",
-                    "Bank/Credit Card Fees",
-                    "Taxes",
-                    "Other"
-                ],
-                [
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    2,
-                    1
-                ]
-            ],
-            "Transportation": [
-                [
-                    "Transit Pass",
-                    "Car Share Services",
-                    "Fuel",
-                    "Insurance",
-                    "Maintenance",
-                    "Parking"
-                ],
-                [
-                    1,
-                    1,
-                    1,
-                    2,
-                    1,
-                    1
-                ]
-            ],
-            "Clothing": [
-                [
-                    "Everyday Use",
-                    "Special Occasion",
-                    "Other"
-                ],
-                [
-                    1,
-                    1,
-                    1
-                ]
-            ],
-            "Medical": [
-                [
-                    "Insurance (life)",
-                    "Insurance (Medical)",
-                    "Prescription Drugs",
-                    "Over the Counter Drugs",
-                    "Medical Services",
-                    "Paramedical Services",
-                    "Dental",
-                    "Vision Care",
-                    "Skin Care",
-                    "Other"
-                ],
-                [
-                    2,
-                    2,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1
-                ]
-            ]
-        }
-    },
-    {
-        "Title": "new template",
-        "Income": {
-            "All Income": [
-                [
-                    "Employment",
-                    "Investments",
-                    "Business",
-                    "Other"
-                ],
-                [
-                    1,
-                    1,
-                    1,
-                    1
-                ]
-            ]
-        },
-        "Expenses": {
-            "Housing": [
-                [
-                    "Rent",
-                    "Utilities",
-                    "Phone",
-                    "Internet",
-                    "TV/Streaming Services",
-                    "Maintenance",
-                    "Other"
-                ],
-                [
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1
-                ]
-            ],
-            "Regular Living Expenses": [
-                [
-                    "Groceries",
-                    "Delivery/Take Out",
-                    "Coffee/Treats",
-                    "Hygeine and Personal Grooming",
-                    "Appliances",
-                    "Computer Parts",
-                    "Entertainment",
-                    "Hobbies and Skill Development",
-                    "Bank/Credit Card Fees",
-                    "Taxes",
-                    "Other"
-                ],
-                [
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    2,
-                    1
-                ]
-            ],
-            "Transportation": [
-                [
-                    "Transit Pass",
-                    "Car Share Services",
-                    "Fuel",
-                    "Insurance",
-                    "Maintenance",
-                    "Parking"
-                ],
-                [
-                    1,
-                    1,
-                    1,
-                    2,
-                    1,
-                    1
-                ]
-            ],
-            "Clothing": [
-                [
-                    "Everyday Use",
-                    "Special Occasion",
-                    "Other"
-                ],
-                [
-                    1,
-                    1,
-                    1
-                ]
-            ],
-            "Medical": [
-                [
-                    "Insurance (life)",
-                    "Insurance (Medical)",
-                    "Prescription Drugs",
-                    "Over the Counter Drugs",
-                    "Medical Services",
-                    "Paramedical Services",
-                    "Dental",
-                    "Vision Care",
-                    "Skin Care",
-                    "Other"
-                ],
-                [
-                    2,
-                    2,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1
-                ]
-            ]
-        }
-    },
-    {
         "Title": "User Template string var test",
         "Income": {
             "All Income": [
@@ -1213,6 +707,135 @@
                     1,
                     1,
                     2,
+                    1,
+                    1
+                ]
+            ],
+            "Clothing": [
+                [
+                    "Everyday Use",
+                    "Special Occasion",
+                    "Other"
+                ],
+                [
+                    1,
+                    1,
+                    1
+                ]
+            ],
+            "Medical": [
+                [
+                    "Insurance (life)",
+                    "Insurance (Medical)",
+                    "Prescription Drugs",
+                    "Over the Counter Drugs",
+                    "Medical Services",
+                    "Paramedical Services",
+                    "Dental",
+                    "Vision Care",
+                    "Skin Care",
+                    "Other"
+                ],
+                [
+                    2,
+                    2,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1
+                ]
+            ]
+        }
+    },
+    {
+        "Title": "Default3",
+        "Income": {
+            "All Income": [
+                [
+                    "Employment",
+                    "Rent",
+                    "Investments",
+                    "Other"
+                ],
+                [
+                    1,
+                    2,
+                    1,
+                    1
+                ]
+            ]
+        },
+        "Expenses": {
+            "Housing": [
+                [
+                    "Rent",
+                    "Utilities",
+                    "Phone",
+                    "Internet",
+                    "TV/Streaming Services",
+                    "Maintenance",
+                    "Home Insurance",
+                    "Other"
+                ],
+                [
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    2,
+                    1
+                ]
+            ],
+            "Common Living Expenses": [
+                [
+                    "Groceries",
+                    "Delivery/Take Out",
+                    "Coffee/Treats",
+                    "Hygeine and Personal Grooming",
+                    "Appliances",
+                    "Computer Parts",
+                    "Entertainment",
+                    "Hobbies and Skill Development",
+                    "Bank/Credit Card Fees",
+                    "Taxes",
+                    "Other"
+                ],
+                [
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    2,
+                    1
+                ]
+            ],
+            "Transportation": [
+                [
+                    "Transit Pass",
+                    "Car Share Services",
+                    "Fuel",
+                    "Insurance",
+                    "Maintenance",
+                    "Parking",
+                    "Other"
+                ],
+                [
+                    1,
+                    1,
+                    1,
+                    2,
+                    1,
                     1,
                     1
                 ]
