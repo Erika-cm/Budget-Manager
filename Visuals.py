@@ -1,5 +1,6 @@
 from typing import Any, Tuple
 import customtkinter as ctk
+from ctk_date_picker import CTkDatePicker
 from tkinter import ttk
 from typing import Literal, overload
 import pywinstyles
@@ -1062,7 +1063,12 @@ class TransactionListWindow(ctk.CTkToplevel):
 
         self.cell_transaction_list_frame = ctk.CTkScrollableFrame(self)
         self.cell_transaction_list_frame.grid_columnconfigure(0, weight=1)
+        self.cell_transaction_list_frame.grid_columnconfigure(1, weight=10)
+        self.cell_transaction_list_frame.grid_columnconfigure(2, weight=2)
         self.cell_transaction_list_frame.grid_rowconfigure(0, weight=1)
+        self.transaction_list_heading_amount = ctk.CTkLabel(self.cell_transaction_list_frame, text="Amount", font=("Calibri", 20), fg_color="#252525")
+        self.transaction_list_heading_entity = ctk.CTkLabel(self.cell_transaction_list_frame, text="Entity", font=("Calibri", 20), fg_color="#252525")
+        self.transaction_list_heading_date = ctk.CTkLabel(self.cell_transaction_list_frame, text="Date (dd/mm)", font=("Calibri", 20), fg_color="#252525")
 
         self.transaction_list_cancel_button = ctk.CTkButton(self, text="Cancel", fg_color="#00aaff", font=('calibri', 24), command=self.destroy)
         self.transaction_list_add_new_button = ctk.CTkButton(self, text="Add New", fg_color="#00aaff", font=('calibri', 24), command=lambda add_new_button=True: self.draw_transaction_editor_window(add_new_button))
@@ -1077,6 +1083,9 @@ class TransactionListWindow(ctk.CTkToplevel):
         self.transactions_for_info_subcategory.grid(row=3, column=0, columnspan=5, sticky="n")
 
         self.cell_transaction_list_frame.grid(row=4, column=0, columnspan=5, sticky="nsew", padx=10, pady=(5,0))
+        self.transaction_list_heading_amount.grid(row=0, column=0, sticky="new", padx=1)
+        self.transaction_list_heading_entity.grid(row=0, column=1, sticky="new", padx=1)
+        self.transaction_list_heading_date.grid(row=0, column=2, sticky="new", padx=1)
 
         self.transaction_list_cancel_button.grid(row=5, column=0, sticky="ew", padx=(10,5), pady=(0,5))
         self.transaction_list_add_new_button.grid(row=5, column=1, sticky="ew", padx=5, pady=(0,5))
@@ -1091,16 +1100,20 @@ class TransactionListWindow(ctk.CTkToplevel):
         self.transaction_checkbox_list: list = []
         self.checkbox_statuses: list = []
         for index, transaction in enumerate(cell_transactions):
-            transaction_checkbox = ctk.CTkCheckBox(self.cell_transaction_list_frame, text='${:,.2f}'.format(transaction[-1]), command=lambda: self.app_logic.user_selects_transaction())
+            transaction_checkbox = ctk.CTkCheckBox(self.cell_transaction_list_frame, text='${:,.2f}'.format(transaction[-1]), font=("Calibri", 18), command=lambda: self.app_logic.user_selects_transaction())
+            transaction_entity = ctk.CTkLabel(self.cell_transaction_list_frame, text="Entity Name", font=("Calibri", 18))
+            transaction_date = ctk.CTkLabel(self.cell_transaction_list_frame, text=f'{transaction[9]}/{transaction[8]}', font=("Calibri", 18))
             self.transaction_checkbox_list.append(transaction_checkbox)
             self.checkbox_statuses.append(0)
-            transaction_checkbox.grid(row=0+index, column=0, sticky="wn", pady=5, padx=5)
+            transaction_checkbox.grid(row=1+index, column=0, sticky="wn", pady=3, padx=1)
+            transaction_entity.grid(row=1+index, column=1, sticky="wn", pady=3, padx=1)
+            transaction_date.grid(row=1+index, column=2, sticky="wn", pady=3, padx=1)
 
     def add_transaction_to_list(self, transaction_amount: float):
         transaction_amount_str: str = '${:,.2f}'.format(transaction_amount)
-        new_transaction_checkbox = ctk.CTkCheckBox(self.cell_transaction_list_frame, text=transaction_amount_str + TrasactionStatuses.new.value, command=lambda: self.app_logic.user_selects_transaction())
+        new_transaction_checkbox = ctk.CTkCheckBox(self.cell_transaction_list_frame, text=transaction_amount_str + TrasactionStatuses.new.value, font=("Calibri", 15), command=lambda: self.app_logic.user_selects_transaction())
         self.transaction_checkbox_list.append(new_transaction_checkbox)
-        new_transaction_checkbox.grid(row=len(self.transaction_checkbox_list), column=0, sticky="wn", pady=5, padx=5)
+        new_transaction_checkbox.grid(row=len(self.transaction_checkbox_list)+1, column=0, sticky="wn", pady=3, padx=1)
         self.checkbox_statuses.append(0)
     
     def draw_transaction_editor_window(self, add_new_button: bool, called_by_manager: bool=False):
@@ -1115,7 +1128,7 @@ class TransactionEditorWindow(ctk.CTkToplevel):
         #window chars
         self.title("Edit Transaction")
         self.geometry("500x550")
-        self.minsize(500, 550)
+        self.minsize(500, 570)
         self.grid_columnconfigure((0,1), weight=1, uniform='a')
         self.grid_rowconfigure((0), weight=1, uniform='a')
         self.grid_rowconfigure(1, weight=50)
@@ -1137,6 +1150,8 @@ class TransactionEditorWindow(ctk.CTkToplevel):
         self.transaction_form_frame = ctk.CTkFrame(self)
         self.annual_month_label = ctk.CTkLabel(self.transaction_form_frame, text="Annual/Month", text_color="#00aaff", font=('calibri', 24))
         self.annual_month_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=self.app_logic.tab_title_list[:-1], variable=self.dropdown_tab_name, state='readonly', command=lambda annual=self.dropdown_tab_name: self.app_logic.set_dropdowns_to_annual_or_month(annual))
+        self.date_selection_label = ctk.CTkLabel(self.transaction_form_frame, text="Date (dd/mm/yyyy)", text_color="#00aaff", font=('calibri', 24))
+        self.date_selector = CTkDatePicker(self.transaction_form_frame, app_logic, self.app_logic.year, self.app_logic.current_tab_num, self.app_logic.day, False, False)
         self.account_label = ctk.CTkLabel(self.transaction_form_frame, text="Account", text_color="#00aaff", font=('calibri', 24))
         self.account_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=self.app_logic.budget_accounts_name_list, variable=self.dropdown_account_name, state='readonly')
         self.income_expense_label = ctk.CTkLabel(self.transaction_form_frame, text="Income or Expense", text_color="#00aaff", font=('calibri', 24))
@@ -1157,6 +1172,8 @@ class TransactionEditorWindow(ctk.CTkToplevel):
         self.transaction_form_frame.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5,0))
         self.annual_month_label.pack(pady=5)
         self.annual_month_dropdown.pack()
+        self.date_selection_label.pack()
+        self.date_selector.pack()
         self.account_label.pack(pady=5)
         self.account_dropdown.pack()
         self.income_expense_label.pack(pady=5)
@@ -1176,9 +1193,28 @@ class TransactionEditorWindow(ctk.CTkToplevel):
             self.account_dropdown.configure(state="disabled")
             self.income_expense_dropdown.configure(state="disabled")
             self.category_dropdown.configure(state="disabled")
-            self.subcategory_dropdown.configure(state="disabled")
-        if not add_new:
+            self.subcategory_dropdown.configure(state="disabled")   
+            #set default date, based on selected tab
+            if self.app_logic.current_tab_num == self.app_logic.month:
+                self.date_selector.set_month_and_day(self.app_logic.month, self.app_logic.day) #new transaction takes today as date      
+            elif self.app_logic.current_tab_num != self.app_logic.month:
+                self.date_selector.set_month_and_day(self.app_logic.current_tab_num, 1) #new transaction takes current tab, and 1 as date
+        elif not add_new:
             self.entrybox_amount.set(app_logic.cell_transactions_from_db[app_logic.current_transaction_to_edit][-1])
+            #set date based on selected tab and existing transaction data
+            selected_transaction_day = app_logic.cell_transactions_from_db[app_logic.current_transaction_to_edit][9]
+            selected_transaction_month = app_logic.cell_transactions_from_db[app_logic.current_transaction_to_edit][8] 
+            if selected_transaction_month == 0: #annual transactions cannot currently have a date                
+                self.date_selector.set_month_and_day(selected_transaction_month, 0)    
+                self.date_selector.calendar_button.configure(state="disabled")  
+                self.date_selector.date_entry.configure(state="disabled")                 
+            elif selected_transaction_day == None and self.app_logic.current_tab_num == app_logic.month: #no date in transaction data but month=this month, select current tab and today as date
+                self.date_selector.set_month_and_day(self.app_logic.current_tab_num, self.app_logic.day)
+            elif selected_transaction_day == None and self.app_logic.current_tab_num != app_logic.month: #no date, month!=this month, selected current tab and 1 as date
+                self.date_selector.set_month_and_day(selected_transaction_month, 1)
+            elif selected_transaction_day != None:
+                self.date_selector.set_month_and_day(selected_transaction_month, 
+                                                     selected_transaction_day) #use existing transaction date
         
         app_logic.give_logic_temp_window_acess(transaction_editor_window=self)
         app_logic.set_dropdown_categories(self.dropdown_incexp.get(), False)

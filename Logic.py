@@ -8,7 +8,8 @@ import json
 import sqlite3
 import datetime
 if TYPE_CHECKING:
-    from Visuals import MainMenu,NavigationPanel, RadioButtonMenu, EditBudgetTemplate, EditBudget, AccountSelection, VisualFunctions, SaveNameWindow, WarningWindow, ManageBudget, TransactionListWindow, TransactionEditorWindow
+    from Visuals import MainMenu, NavigationPanel, RadioButtonMenu, EditBudgetTemplate, EditBudget, AccountSelection, VisualFunctions, SaveNameWindow, WarningWindow, ManageBudget, TransactionListWindow, TransactionEditorWindow
+    from ctk_date_picker import CTkDatePicker
 
 #program system names
 class SystemNames(Enum):
@@ -119,7 +120,8 @@ class AppLogic():
     def give_logic_temp_window_acess(self, 
                                      save_window: "SaveNameWindow | None" = None, 
                                      transaction_list_window: "TransactionListWindow | None" = None,
-                                     transaction_editor_window: "TransactionEditorWindow | None" = None):
+                                     transaction_editor_window: "TransactionEditorWindow | None" = None,
+                                     date_picker: "CTkDatePicker | None" = None):
         '''Gives logic access to the members of temporary windows/toplevels
         \nLogic.py requires the class to be imported under TYPECHECKING, and a reference to the class instance added as an optional parameter
         \nA call to this method must appear in the __init__ for the given class, passing self for the appropriate argument'''
@@ -129,6 +131,8 @@ class AppLogic():
             self.transaction_list_window = transaction_list_window
         if transaction_editor_window != None:
             self.transaction_editor_window = transaction_editor_window
+        if date_picker != None:
+            self.date_picker = date_picker
     
     def set_user_files_path(self):
         if sys.executable.endswith("python.exe"): #runnig in dev version from .py
@@ -1202,7 +1206,8 @@ class AppLogic():
                                         [Sub-Category Name].id, 
                                         Accounts.[Account Name],
                                         Accounts.id,
-                                        Transactions.Month, 
+                                        Transactions.Month,
+                                        Transactions.Day, 
                                         Transactions.Amount 
                                         from Transactions join [Category Name] join [Sub-Category Name] join [Accounts]
                                         on Transactions.[Category_id] = [Category Name].id
@@ -1215,6 +1220,7 @@ class AppLogic():
                                          self.budget_accounts_data[self.selected_column-2][1],
                                          self.current_tab_num))
         self.cell_transactions_from_db: list = self.manage_budget_cur.fetchall()
+        print(self.cell_transactions_from_db)
         self.transaction_list_window.create_transaction_list(self.cell_transactions_from_db)
 
         #configure transaction list labels to display selected cell info
@@ -1259,7 +1265,7 @@ class AppLogic():
                     transaction_status = status.name
                     break
                 else:transaction_status = None #indicates no change of transaction
-            if False in [self.selected_row_tags[0] == self.cell_transactions_from_db[i][5], 
+            if False in [self.selected_row_tags[0] == self.cell_transactions_from_db[i][5], #check for change of cell
                          self.selected_row_parent_tags[0] == self.cell_transactions_from_db[i][3], 
                          self.selected_row_grandparent_tags[0] == self.cell_transactions_from_db[i][1], 
                          self.selected_column-1 == self.cell_transactions_from_db[i][7], #NOTE index adjustment needed to match selected col (0 indexed, with 0,1 reserved) to DB account ID# with initial value = 1
@@ -1304,13 +1310,30 @@ class AppLogic():
     
     #TRANSACTION EDITOR
     def set_dropdowns_to_annual_or_month(self, annual: str):
-        '''check if user switches from month to annual or inverse.  If switching then set category dropdown string var to 0th entity'''
-        if self.tab_title_list[0] == annual and self.current_tab_num != 0: #switching from monthly to annual
+        '''annual is the string value selected from the dropdown,
+        \ncheck if user switches from month to annual or inverse.  If switching then set category dropdown string var to 0th entity
+        \n'''
+        if self.tab_title_list[0] == annual and self.current_tab_num != 0: #switching from monthly to annual, datepicker set to 0's
             set_dropdown_default = True
-        if self.tab_title_list[0] != annual and self.current_tab_num == 0: #switching from annual to monthly
+            month_selected = False
+            self.date_picker.set_month_and_day(0, 0)
+            self.visual_functions.configure_widget(self.date_picker.calendar_button, new_state="disabled")
+        elif self.tab_title_list[0] != annual and self.current_tab_num == 0: #switching from annual to monthly
             set_dropdown_default = True
+            month_selected: bool = True
         else:
-            set_dropdown_default = False
+            set_dropdown_default = False #switched from month to month
+            month_selected = True
+        #assign matching index based on dropdown month/annual selected
+        if month_selected:
+            self.visual_functions.configure_widget(self.date_picker.calendar_button, new_state="normal")
+            for i, tab_name in enumerate(self.tab_title_list): 
+                if tab_name == annual and i == self.month: #selected dropdown matches selected tab AND month is this month
+                    self.date_picker.set_month_and_day(i, self.day) #use today                
+                    break
+                elif tab_name == annual and i != self.month: #selected tab matches but month is not this month
+                    self.date_picker.set_month_and_day(i, 1) #Do NOT use today                
+                    break
         self.set_dropdown_categories(self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_incexp), set_dropdown_default)
 
     def set_dropdown_categories(self, incexp: str, set_default: bool): 
@@ -1369,9 +1392,9 @@ class AppLogic():
     def confirm_transaction_editor(self, called_by_manager: bool, add_new: bool, event=None):
         '''called by 'confirm button' or a return key event (when focus set to entry box)
         \nchecks if editor was called by manager window (nav panel) or list window,
-        \nif manager window: calls add_new_transaction,
+        \nif manager window: calls modify_budget_database,
         \nif list window addnew button: calls add_new_transaction_to_list
-         \nif list window editbutton: calls edit_transaction_in_list (this may just be a delete func, then the add_new_transaction func)'''
+         \nif list window editbutton: calls edit_transaction_in_list (this may just be a delete func, then the modify_budget_database func)'''
         if self.check_editor_entry_is_number() == True:
             if called_by_manager:
                 try:                    
@@ -1491,18 +1514,18 @@ class AppLogic():
         \nmodification=1 = modifying: -1, 3, 5, 7, 8, 0
         \nmodification=2 = deleting: 0'''
         if modification == 0: #add
-            self.manage_budget_cur.execute("insert into Transactions (Amount, [Category_id], [Sub_Category_id], [Account_Type_id], Month) Values (?, ?, ?, ?, ?)", 
-                                       (transaction_entry[-1], transaction_entry[3], transaction_entry[5], transaction_entry[7], transaction_entry[8]))
+            self.manage_budget_cur.execute("insert into Transactions (Amount, [Category_id], [Sub_Category_id], [Account_Type_id], Month, Day) Values (?, ?, ?, ?, ?, ?)", 
+                                       (transaction_entry[-1], transaction_entry[3], transaction_entry[5], transaction_entry[7], transaction_entry[8], transaction_entry[9]))
         elif modification == 1: #modify
-            self.manage_budget_cur.execute("update Transactions set Amount = ?, [Category_id] = ?, [Sub_Category_id] = ?, [Account_Type_id] = ?, Month = ? where id = ?", 
-                                        (transaction_entry[-1], transaction_entry[3], transaction_entry[5], transaction_entry[7], transaction_entry[8], transaction_entry[0]))
+            self.manage_budget_cur.execute("update Transactions set Amount = ?, [Category_id] = ?, [Sub_Category_id] = ?, [Account_Type_id] = ?, Month = ?, Day = ? where id = ?", 
+                                        (transaction_entry[-1], transaction_entry[3], transaction_entry[5], transaction_entry[7], transaction_entry[8], transaction_entry[9], transaction_entry[0]))
         elif modification == 2: #delete
             self.manage_budget_cur.execute("delete from Transactions where id = ?", (transaction_entry[0], ))
         self.manage_budget_conn.commit()
     
     def add_new_transaction_to_list(self): 
         '''adds a new transaction to the list window,
-        \nassigns 0 as temp transaction id and get [incexp id, cat, cat id, subcat, subcat id, account, account id, month, amount] and add to transactions list '''
+        \nassigns 0 as temp transaction id and get [incexp id, cat, cat id, subcat, subcat id, account, account id, month, day, amount] and add to transactions list '''
         new_transaction_data: tuple = self.assemble_transaction_data_entry(0)
         self.transaction_list_window.add_transaction_to_list(self.transaction_editor_amount)
         self.cell_transactions_from_db.append(new_transaction_data)
@@ -1525,10 +1548,11 @@ class AppLogic():
         self.manage_budget_cur.execute('''select Accounts.id  from Accounts where Accounts.[Account Name] = (?)''', (acct_name,))
         acct_id = self.manage_budget_cur.fetchall()[0][0]
         transaction_tab_num: int = self.current_tab_num
+        transaction_day: int = int(self.visual_functions.get_entrybox_content(self.transaction_editor_window.date_selector.date_entry).split("/")[0])
         for i, tab in enumerate(self.tab_title_list): #update tab from current if changed in editor window
                 if tab == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_tab_name):
                     transaction_tab_num = i
-        return (transaction_id, transaction_incexp, cat_name, cat_id, subcat_name, subcat_id, acct_name, acct_id, transaction_tab_num, self.transaction_editor_amount)
+        return (transaction_id, transaction_incexp, cat_name, cat_id, subcat_name, subcat_id, acct_name, acct_id, transaction_tab_num, transaction_day, self.transaction_editor_amount)
 
     def edit_transaction_in_list(self): #confirm button in editor clicked (called for each selected transaction)
         '''Check for modifications to currently selected transaction (id'd by self.current_transaction_to_edit)
@@ -1539,9 +1563,10 @@ class AppLogic():
         subcategory_mod = self.cell_transactions_from_db[self.current_transaction_to_edit][4] == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_subcat_name)
         account_mod = self.cell_transactions_from_db[self.current_transaction_to_edit][6] == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_account_name)
         tab_mod = self.tab_title_list[self.cell_transactions_from_db[self.current_transaction_to_edit][8]] == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_tab_name)
+        day_mod = self.cell_transactions_from_db[self.current_transaction_to_edit][9] == int(self.visual_functions.get_entrybox_content(self.transaction_editor_window.date_selector.date_entry).split("/")[0])
         amount_mod = self.cell_transactions_from_db[self.current_transaction_to_edit][-1] == round(float(self.visual_functions.extract_str_var(self.transaction_editor_window.entrybox_amount)), 2)
 
-        if False in [incexp_mod, category_mod, subcategory_mod, account_mod, tab_mod, amount_mod]: #modification found                     
+        if False in [incexp_mod, category_mod, subcategory_mod, account_mod, tab_mod, day_mod, amount_mod]: #modification found                     
             transaction_id: int = self.cell_transactions_from_db[self.current_transaction_to_edit][0] 
             modded_transaction_data: tuple = self.assemble_transaction_data_entry(transaction_id)
             self.cell_transactions_from_db[self.current_transaction_to_edit] = modded_transaction_data
@@ -1573,5 +1598,6 @@ class AppLogic():
     def keep_focus_in_entry(self, event):
         self.visual_functions.set_widget_focus(self.transaction_editor_window.amount_entry)
         self.visual_functions.set_entrybox_cursor(self.transaction_editor_window.amount_entry, 'end')
+
 
    
