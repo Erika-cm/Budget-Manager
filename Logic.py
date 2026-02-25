@@ -568,7 +568,8 @@ class AppLogic():
                           id integer not null primary key autoincrement unique,
                           [Sub-Category] text,
                           Category_Name_id integer,
-                          Monthly_annual_id integer
+                          Monthly_annual_id integer,
+                          Most_recent_entity_id, integer
             );
                         
         create table if not exists [Budget Amounts] (
@@ -847,19 +848,37 @@ class AppLogic():
             self.income_expense_str_list.append(section[0])
             self.income_expense_treeview_str_list.append("Total " + section[0])
         self.manage_budget_cur.execute("select [Category Name].Category, [Category Name].Income_expense_id, [Category Name].id from [Category Name]")
-        self.category_data = self.manage_budget_cur.fetchall()
+        self.category_data: list = self.manage_budget_cur.fetchall()
+        self.manage_budget_cur.execute("pragma table_info([Sub-Category Name]);") #check for subcatname table cols (backwards compatibility)
+        subcat_table_cols: list = self.manage_budget_cur.fetchall()
+        most_recent_entity_col_found: bool = False
+        for col in subcat_table_cols:
+            if col[1] == 'Most_recent_entity_id': 
+                most_recent_entity_col_found =True
+                break
+        if not most_recent_entity_col_found:
+            self.manage_budget_cur.execute("alter table [Sub-Category Name] add Most_recent_entity_id integer;")    
+            self.manage_budget_conn.commit()            
         self.manage_budget_cur.execute('''select [Sub-Category Name].[Sub-Category], 
                                        [Budget Amounts].Amount, 
                                        [Sub-Category Name].id,
                                        [Budget Amounts].id,
                                        [Budget Amounts].Sub_Category_id,
                                        [Sub-Category Name].Monthly_annual_id,
-                                       [Budget Amounts].Category_id 
+                                       [Budget Amounts].Category_id,
+                                       [Sub-Category Name].[Most_recent_entity_id] 
                                        from [Sub-Category Name] join [Budget Amounts] on [Budget Amounts].Sub_Category_id = [Sub-Category Name].id''')
         self.subcategory_and_amount_data = self.manage_budget_cur.fetchall()
-        self.subcat_budgetamounts = []
+        self.subcat_budgetamounts: list = []
         for entry in self.subcategory_and_amount_data:
             self.subcat_budgetamounts.append([entry[0], entry[1], entry[2], entry[5], entry[6]]) #[subcat label, amount, sub-cat-id, monthly-annual, category-id]
+        self.manage_budget_cur.execute("select Entity.Description, Entity.id from Entity")
+        self.entity_data: list = self.manage_budget_cur.fetchall()      
+        if ('None', 1) not in self.entity_data: #None not in entity data, add it
+            self.manage_budget_cur.execute('''insert into Entity (Description) Values (?)''', ("None",))
+            self.manage_budget_conn.commit()
+            self.manage_budget_cur.execute("select Entity.Description, Entity.id from Entity")
+            self.entity_data = self.manage_budget_cur.fetchall()        
         for index, table in enumerate(self.manage_budget_table.treeview_list):
             self.display_budget_data(table, index, self.income_expense_treeview_str_list[0], self.income_expense_data[0][1]) #income 
             self.display_budget_data(table, index, self.income_expense_treeview_str_list[1], self.income_expense_data[1][1]) #expenses
@@ -1177,6 +1196,7 @@ class AppLogic():
         self.manage_budget_table.destroy_management_treeviews()
         self.budget_displayed_in_manager = False
         #NOTE: could reset tab selection here if desired (could also do it on load of budget: display_budget_management_table)
+        self.manage_budget_cur.close()
         self.manage_budget_conn.close()
 
     #TRANSACTION LIST WINDOW
@@ -1208,19 +1228,21 @@ class AppLogic():
                                         Accounts.id,
                                         Transactions.Month,
                                         Transactions.Day, 
+                                        Entity.Description,
+                                        Transactions.[Entity_id],                                        
                                         Transactions.Amount 
-                                        from Transactions join [Category Name] join [Sub-Category Name] join [Accounts]
-                                        on Transactions.[Category_id] = [Category Name].id
-                                        and Transactions.[Sub_Category_id] = [Sub-Category Name].id
-                                        and Transactions.[Account_Type_id] = Accounts.id
-                                        where ([Sub_Category_id], 
-                                       [Account_Type_id], 
-                                       Month) = (?, ?, ?)''',
+                                        from Transactions 
+                                       join [Category Name] on Transactions.[Category_id] = [Category Name].id
+                                       join [Sub-Category Name] on Transactions.[Sub_Category_id] = [Sub-Category Name].id
+                                       join [Accounts] on Transactions.[Account_Type_id] = Accounts.id
+                                       left join [Entity] on Transactions.[Entity_id] = Entity.id
+                                       where ([Sub_Category_id], 
+                                              [Account_Type_id], 
+                                              Month) = (?, ?, ?)''',
                                         (self.selected_row_tags[0], 
                                          self.budget_accounts_data[self.selected_column-2][1],
                                          self.current_tab_num))
         self.cell_transactions_from_db: list = self.manage_budget_cur.fetchall()
-        print(self.cell_transactions_from_db)
         self.transaction_list_window.create_transaction_list(self.cell_transactions_from_db)
 
         #configure transaction list labels to display selected cell info
@@ -1309,7 +1331,7 @@ class AppLogic():
         self.visual_functions.destroy_widget(self.transaction_list_window)
     
     #TRANSACTION EDITOR
-    def set_dropdowns_to_annual_or_month(self, annual: str):
+    def set_dropdowns_to_annual_or_month(self, annual: str, add_new: bool):
         '''annual is the string value selected from the dropdown,
         \ncheck if user switches from month to annual or inverse.  If switching then set category dropdown string var to 0th entity
         \n'''
@@ -1334,9 +1356,9 @@ class AppLogic():
                 elif tab_name == annual and i != self.month: #selected tab matches but month is not this month
                     self.date_picker.set_month_and_day(i, 1) #Do NOT use today                
                     break
-        self.set_dropdown_categories(self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_incexp), set_dropdown_default)
+        self.set_dropdown_categories(self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_incexp), set_dropdown_default, add_new)
 
-    def set_dropdown_categories(self, incexp: str, set_default: bool): 
+    def set_dropdown_categories(self, incexp: str, set_default: bool, add_new: bool): 
         '''sets the available categories based on selection of income or expenses.  
         \nset_default should be true when changing income/expense or from annual to month or inverse,
         \nit only becomes false if switching between months'''
@@ -1346,9 +1368,9 @@ class AppLogic():
             self.visual_functions.set_string_var(self.transaction_editor_window.dropdown_category_name, self.dropdown_categories_names[0])
         self.visual_functions.configure_dropdown(self.transaction_editor_window.category_dropdown, values=self.dropdown_categories_names)
         selected_category: str = self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_category_name)
-        self.set_dropdown_subcategories(selected_category, set_default)
+        self.set_dropdown_subcategories(selected_category, set_default, add_new)
 
-    def set_dropdown_subcategories(self, category: str, set_default: bool): 
+    def set_dropdown_subcategories(self, category: str, set_default: bool, add_new: bool): 
         annual = self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_tab_name) == self.tab_title_list[0]
         selected_subcats = []
         for subcat, annual_month in zip(self.selected_budget_section.get(category, list)[0], self.selected_budget_section.get(category, list)[1]):
@@ -1364,6 +1386,65 @@ class AppLogic():
             else:
                 self.visual_functions.set_string_var(self.transaction_editor_window.dropdown_subcat_name, selected_subcats[0])
                 self.visual_functions.configure_widget(self.transaction_editor_window.transaction_editor_confirm_button, new_state="normal")
+        self.set_dropdown_entities(add_new)
+
+    def set_dropdown_entities(self, add_new: bool):                  
+        self.entity_dropdown_list: list[str] = []
+        for entity in self.entity_data:
+            self.entity_dropdown_list.append(entity[0])
+        self.visual_functions.configure_dropdown(self.transaction_editor_window.entity_dropdown, values=self.entity_dropdown_list)
+        #set default dropdown value to None or using current transaction Data (if available)
+        if add_new: #set string var and dropdown to None or most recent entity
+            most_recent_entity_set: bool = self.set_default_entity_as_most_recent()
+            if most_recent_entity_set == False: #failed to find most recent entity
+                self.visual_functions.set_string_var(self.transaction_editor_window.dropdown_entity_name, new_value=self.entity_dropdown_list[0])
+        elif not add_new and self.cell_transactions_from_db[self.current_transaction_to_edit][10] == None: #None Type(Null in DB) assign the string "None", or most recent entity
+            most_recent_entity_set: bool = self.set_default_entity_as_most_recent()
+            if most_recent_entity_set == False: #failed to find most recent entity
+                self.visual_functions.set_string_var(self.transaction_editor_window.dropdown_entity_name, new_value=self.entity_dropdown_list[0])
+        elif not add_new and self.cell_transactions_from_db[self.current_transaction_to_edit][10] != None: #entity was not None Type(Null), use transaction data (str)
+            self.visual_functions.set_string_var(self.transaction_editor_window.dropdown_entity_name, new_value=self.cell_transactions_from_db[self.current_transaction_to_edit][10])
+        #user cannot delete 'None' from entity data        
+        self.set_entity_delete_btn_status()
+
+    def set_default_entity_as_most_recent(self) -> bool:
+        '''called when editor window opened'''
+        default_set: bool = False
+        selected_subcat_id = self.assemble_transaction_data_entry(0, True)    
+        self.manage_budget_cur.execute("select [Sub-Category Name].[Most_recent_entity_id] from [Sub-Category Name] where id = (?)", (selected_subcat_id,))
+        most_recent_entity_id = self.manage_budget_cur.fetchall()
+        for i, entity in enumerate(self.entity_data):
+            if entity[1] == most_recent_entity_id[0][0]:
+                self.visual_functions.set_string_var(self.transaction_editor_window.dropdown_entity_name, new_value=self.entity_dropdown_list[i])
+                default_set = True
+                break
+        return default_set
+
+    def set_entity_delete_btn_status(self, event=None): 
+        entity_name = self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_entity_name)
+        if entity_name == self.entity_data[0][0]: #name is "None", disable
+                self.visual_functions.configure_widget(self.transaction_editor_window.entity_delete_button, new_state="disabled")
+        else: #not "None"
+            for entity in self.entity_data:
+                if entity_name == entity[0] and entity != self.entity_data[0][0]: #name is in list but not "None", enable
+                    self.visual_functions.configure_widget(self.transaction_editor_window.entity_delete_button, new_state="normal")
+                    break
+                else: #name not in list, disable (prevent user confusion-delete would delete previous selection)
+                    self.visual_functions.configure_widget(self.transaction_editor_window.entity_delete_button, new_state="disabled")                
+            
+    def delete_currently_selected_entity_from_db(self):
+        for i, entity in enumerate(self.entity_data):
+            if entity[0] == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_entity_name):               
+                self.manage_budget_cur.execute('''delete from Entity where id = ?''', (entity[1],))
+                self.manage_budget_conn.commit()
+                self.entity_data.pop(i)
+                self.entity_dropdown_list.pop(i)
+                self.visual_functions.set_string_var(self.transaction_editor_window.dropdown_entity_name, new_value=self.entity_data[0][0])
+                self.visual_functions.delete_dropdown_entry(self.transaction_editor_window.entity_dropdown, 0, 'end')
+                self.visual_functions.insert_into_dropdown(self.transaction_editor_window.entity_dropdown, 0, 'None')
+                self.transaction_editor_window.entity_dropdown.update()
+                self.visual_functions.configure_dropdown(self.transaction_editor_window.entity_dropdown, values=self.entity_dropdown_list)              
+                break
 
     def close_editor_window(self, add_new: bool, cancel_edit: bool = False):
         if not add_new: #editing
@@ -1404,7 +1485,7 @@ class AppLogic():
                 new_cell_total += self.transaction_editor_amount
                 self.update_indicated_cell(new_cell_total, False, self.current_tab_num, self.selected_row_item, self.selected_row_data, self.selected_column)
                 new_transaction_data = self.assemble_transaction_data_entry(0)
-                self.modify_budget_database(0, new_transaction_data)
+                self.modify_budget_database(0, new_transaction_data)                
             elif not called_by_manager:
                 if add_new == True: #add new button used, call add_new_transaction_to_list(), 
                     self.add_new_transaction_to_list()
@@ -1510,30 +1591,47 @@ class AppLogic():
     def modify_budget_database(self, modification: int, transaction_entry: tuple):
         '''this method modifies the budget sql database, taking a tuple containing the data for the transaction.
         \nthere are 3 options, each using somewhat different parts of transaction_entry:
-        \nmodification=0 = adding: -1, 3, 5, 7, 8
-        \nmodification=1 = modifying: -1, 3, 5, 7, 8, 0
+        \nmodification=0 = adding: -1, 3, 5, 7, 8, 9, 11
+        \nmodification=1 = modifying: -1, 3, 5, 7, 8, 9, 11, 0
         \nmodification=2 = deleting: 0'''
         if modification == 0: #add
-            self.manage_budget_cur.execute("insert into Transactions (Amount, [Category_id], [Sub_Category_id], [Account_Type_id], Month, Day) Values (?, ?, ?, ?, ?, ?)", 
-                                       (transaction_entry[-1], transaction_entry[3], transaction_entry[5], transaction_entry[7], transaction_entry[8], transaction_entry[9]))
-        elif modification == 1: #modify
-            self.manage_budget_cur.execute("update Transactions set Amount = ?, [Category_id] = ?, [Sub_Category_id] = ?, [Account_Type_id] = ?, Month = ?, Day = ? where id = ?", 
-                                        (transaction_entry[-1], transaction_entry[3], transaction_entry[5], transaction_entry[7], transaction_entry[8], transaction_entry[9], transaction_entry[0]))
+            self.manage_budget_cur.execute("insert into Transactions (Amount, [Category_id], [Sub_Category_id], [Account_Type_id], Month, Day, [Entity_id]) Values (?, ?, ?, ?, ?, ?, ?)", 
+                                       (transaction_entry[-1], transaction_entry[3], transaction_entry[5], transaction_entry[7], transaction_entry[8], transaction_entry[9], transaction_entry[11]))
+            self.update_subcat_most_recent_entity(transaction_entry[5], transaction_entry[11]) #subcat id, entity id            
+        elif modification == 1: #modify 
+            self.manage_budget_cur.execute("update Transactions set Amount = ?, [Category_id] = ?, [Sub_Category_id] = ?, [Account_Type_id] = ?, Month = ?, Day = ?, Entity_id = ? where id = ?", 
+                                        (transaction_entry[-1], transaction_entry[3], transaction_entry[5], transaction_entry[7], transaction_entry[8], transaction_entry[9], transaction_entry[11], transaction_entry[0]))
+            self.update_subcat_most_recent_entity(transaction_entry[5], transaction_entry[11]) #subcat id, entity id            
         elif modification == 2: #delete
             self.manage_budget_cur.execute("delete from Transactions where id = ?", (transaction_entry[0], ))
         self.manage_budget_conn.commit()
+
+    def update_subcat_most_recent_entity(self, subcat_id: int, entity_id: int):
+        self.manage_budget_cur.execute("select Most_recent_entity_id from [Sub-Category Name] where [Sub-Category Name].id = (?)", (subcat_id,))
+        if self.manage_budget_cur.fetchall()[0][0] == entity_id: #current most recent entity matches, do nothing
+            pass
+        else: #current entity id does NOT match, update it            
+            self.manage_budget_cur.execute("update [Sub-Category Name] set Most_recent_entity_id = ? where id = ?", (entity_id, subcat_id))
+            self.manage_budget_conn.commit()
+        
+    def reload_entity_data_from_db(self):
+        '''This is called whenever a new entity is have been added to the db inside assemble_transaction_data_entry()
+        \nIf we decide that entity changes should happen when list window is confirmed, the call may be moved to modify_budget_database()'''
+        self.manage_budget_cur.execute("select Entity.Description, Entity.id from Entity")
+        self.entity_data = self.manage_budget_cur.fetchall()       
     
     def add_new_transaction_to_list(self): 
         '''adds a new transaction to the list window,
         \nassigns 0 as temp transaction id and get [incexp id, cat, cat id, subcat, subcat id, account, account id, month, day, amount] and add to transactions list '''
         new_transaction_data: tuple = self.assemble_transaction_data_entry(0)
-        self.transaction_list_window.add_transaction_to_list(self.transaction_editor_amount)
+        self.transaction_list_window.add_transaction_to_list(new_transaction_data[-1], new_transaction_data[10], new_transaction_data[8], new_transaction_data[9])
         self.cell_transactions_from_db.append(new_transaction_data)
 
-    def assemble_transaction_data_entry(self, transaction_id) -> tuple:
+    def assemble_transaction_data_entry(self, transaction_id: int, subcat_id_only: bool = False) -> tuple:
         '''this method queries the budget database and references editor window dropdown values and returns a tuple containing:
-        \ntransaction id, incexp id,category name, category id, subcategory name, subcategory id, account name, account id, tabnum, transaction editor amount
-        \ncan be used to assign id's to new and edited transactions'''
+        \ntransaction id, incexp id,category name, category id, subcategory name, subcategory id, account name, account id, tabnum, day, entity, transaction editor amount
+        \ncan be used to assign id's to new and edited transactions
+        \nis also called when setting entity defaults for editor (returning only subcat id)'''
         transaction_incexp: int = 0
         for incexp in self.income_expense_data: #update incexp NOTE will throw exception if not updated sucessfully
                 if incexp[0] == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_incexp):        
@@ -1544,41 +1642,62 @@ class AppLogic():
         subcat_name = self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_subcat_name)
         self.manage_budget_cur.execute('''select [Sub-Category Name].id  from [Sub-Category Name] where ([Sub-Category Name].[Sub-Category], [Sub-Category Name].[Category_Name_id]) = (?, ?)''', (subcat_name, cat_id))
         subcat_id  = self.manage_budget_cur.fetchall()[0][0]
+        if subcat_id_only:
+            return subcat_id
         acct_name = self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_account_name)
         self.manage_budget_cur.execute('''select Accounts.id  from Accounts where Accounts.[Account Name] = (?)''', (acct_name,))
         acct_id = self.manage_budget_cur.fetchall()[0][0]
-        transaction_tab_num: int = self.current_tab_num
-        transaction_day: int = int(self.visual_functions.get_entrybox_content(self.transaction_editor_window.date_selector.date_entry).split("/")[0])
+        transaction_tab_num: int = self.current_tab_num                
         for i, tab in enumerate(self.tab_title_list): #update tab from current if changed in editor window
                 if tab == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_tab_name):
                     transaction_tab_num = i
-        return (transaction_id, transaction_incexp, cat_name, cat_id, subcat_name, subcat_id, acct_name, acct_id, transaction_tab_num, transaction_day, self.transaction_editor_amount)
+        transaction_day: int = int(self.visual_functions.get_entrybox_content(self.transaction_editor_window.date_selector.date_entry).split("/")[0])
+        entity_id: int | None = None
+        entity_name: str = self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_entity_name)
+        for entity in self.entity_data: #look for string that matches stringvar
+            if entity[0] == entity_name:
+                entity_id = entity[1]
+                break
+        if entity_id == None: #no matching entity name was in list, add it to DB, 
+            self.manage_budget_cur.execute('''insert into Entity (Description) Values (?)''', (entity_name,))
+            self.manage_budget_conn.commit()
+            self.reload_entity_data_from_db()
+        #select and assign entity id
+        self.manage_budget_cur.execute('''select Entity.id from Entity where (Entity.Description) = (?)''', (entity_name,))
+        entity_id = self.manage_budget_cur.fetchall()[0][0]
+        return (transaction_id, transaction_incexp, cat_name, cat_id, subcat_name, subcat_id, acct_name, acct_id, transaction_tab_num, transaction_day, entity_name, entity_id, self.transaction_editor_amount)
 
     def edit_transaction_in_list(self): #confirm button in editor clicked (called for each selected transaction)
         '''Check for modifications to currently selected transaction (id'd by self.current_transaction_to_edit)
         \nif modifications found, update the entry in self.cell_transactions_from_db, update checkbox text value, and mark as modified
         \ndeselect checkbox, and update checkbox statuses list (even if no modifications found)'''
-        incexp_mod = self.income_expense_data[self.cell_transactions_from_db[self.current_transaction_to_edit][1]-1][0] == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_incexp)
-        category_mod = self.cell_transactions_from_db[self.current_transaction_to_edit][2] == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_category_name)
-        subcategory_mod = self.cell_transactions_from_db[self.current_transaction_to_edit][4] == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_subcat_name)
-        account_mod = self.cell_transactions_from_db[self.current_transaction_to_edit][6] == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_account_name)
-        tab_mod = self.tab_title_list[self.cell_transactions_from_db[self.current_transaction_to_edit][8]] == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_tab_name)
-        day_mod = self.cell_transactions_from_db[self.current_transaction_to_edit][9] == int(self.visual_functions.get_entrybox_content(self.transaction_editor_window.date_selector.date_entry).split("/")[0])
-        amount_mod = self.cell_transactions_from_db[self.current_transaction_to_edit][-1] == round(float(self.visual_functions.extract_str_var(self.transaction_editor_window.entrybox_amount)), 2)
+        incexp_mod: bool = self.income_expense_data[self.cell_transactions_from_db[self.current_transaction_to_edit][1]-1][0] == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_incexp)
+        category_mod: bool = self.cell_transactions_from_db[self.current_transaction_to_edit][2] == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_category_name)
+        subcategory_mod: bool = self.cell_transactions_from_db[self.current_transaction_to_edit][4] == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_subcat_name)
+        account_mod: bool = self.cell_transactions_from_db[self.current_transaction_to_edit][6] == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_account_name)
+        tab_mod: bool = self.tab_title_list[self.cell_transactions_from_db[self.current_transaction_to_edit][8]] == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_tab_name)
+        day_mod: bool = self.cell_transactions_from_db[self.current_transaction_to_edit][9] == int(self.visual_functions.get_entrybox_content(self.transaction_editor_window.date_selector.date_entry).split("/")[0])
+        entity_mod: bool = self.cell_transactions_from_db[self.current_transaction_to_edit][10] == self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_entity_name)
+        amount_mod: bool = self.cell_transactions_from_db[self.current_transaction_to_edit][-1] == round(float(self.visual_functions.extract_str_var(self.transaction_editor_window.entrybox_amount)), 2)
 
-        if False in [incexp_mod, category_mod, subcategory_mod, account_mod, tab_mod, day_mod, amount_mod]: #modification found                     
+        if False in [incexp_mod, category_mod, subcategory_mod, account_mod, tab_mod, day_mod, entity_mod, amount_mod]: #modification found                     
             transaction_id: int = self.cell_transactions_from_db[self.current_transaction_to_edit][0] 
             modded_transaction_data: tuple = self.assemble_transaction_data_entry(transaction_id)
             self.cell_transactions_from_db[self.current_transaction_to_edit] = modded_transaction_data
             transaction_status: str = self.visual_functions.get_checkbox_attribute(self.transaction_list_window.transaction_checkbox_list[self.current_transaction_to_edit], 'text')
             if transaction_status.endswith(TrasactionStatuses.new.value):
-                self.visual_functions.configure_widget(self.transaction_list_window.transaction_checkbox_list[self.current_transaction_to_edit], new_text='${:,.2f}'.format(self.cell_transactions_from_db[self.current_transaction_to_edit][-1]) + TrasactionStatuses.modifiednew.value)
+                self.visual_functions.configure_widget(self.transaction_list_window.transaction_checkbox_list[self.current_transaction_to_edit], new_text='${:,.2f}'.format(self.cell_transactions_from_db[self.current_transaction_to_edit][-1]) + TrasactionStatuses.modifiednew.value, new_font=("Calibri", 18))
             else:
-                self.visual_functions.configure_widget(self.transaction_list_window.transaction_checkbox_list[self.current_transaction_to_edit], new_text='${:,.2f}'.format(self.cell_transactions_from_db[self.current_transaction_to_edit][-1]) + TrasactionStatuses.modified.value)
-        
+                self.visual_functions.configure_widget(self.transaction_list_window.transaction_checkbox_list[self.current_transaction_to_edit], new_text='${:,.2f}'.format(self.cell_transactions_from_db[self.current_transaction_to_edit][-1]) + TrasactionStatuses.modified.value, new_font=("Calibri", 18))
+            self.visual_functions.configure_widget(self.transaction_list_window.transaction_entity_label_list[self.current_transaction_to_edit], new_text=self.cell_transactions_from_db[self.current_transaction_to_edit][10], new_font=("Calibri", 18))
+            self.visual_functions.configure_widget(self.transaction_list_window.transaction_date_label_list[self.current_transaction_to_edit], new_text=f"{self.cell_transactions_from_db[self.current_transaction_to_edit][9]}/{self.cell_transactions_from_db[self.current_transaction_to_edit][8]}", new_font=("Calibri", 18))
         self.visual_functions.checkbox_deselect(self.transaction_list_window.transaction_checkbox_list[self.current_transaction_to_edit])
         self.transaction_list_window.checkbox_statuses[self.current_transaction_to_edit] = 0
-        
+    
+    def select_entity_text_on_focus(self, event):
+        self.visual_functions.set_dropdown_cursor(self.transaction_editor_window.entity_dropdown, 'end')
+        self.visual_functions.set_dropdown_selection_range(self.transaction_editor_window.entity_dropdown, 0, 'end')        
+
     def set_bindings_to_amount_entry(self, event):
         self.transaction_editor_window.set_returnkey_binding()
         self.focus_set_to_amount_entry: bool = True

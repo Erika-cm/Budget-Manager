@@ -18,6 +18,9 @@ class CTkDatePicker(ctk.CTkFrame):
 
         super().__init__(master, **kwargs)
         self.app_logic = app_logic
+        self.grid_columnconfigure(0, weight=4, uniform='a')
+        self.grid_columnconfigure(1, weight=1, uniform='a')
+
 
         self.date_entry = ctk.CTkEntry(self)
         self.date_entry.grid(row=0, column=0, sticky="ew", padx=5, pady=5)

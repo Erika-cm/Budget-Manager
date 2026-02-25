@@ -312,7 +312,19 @@ class VisualFunctions(ctk.CTkBaseClass):
     #DROPDOWN MENU
     def configure_dropdown(self, dropdown: ctk.CTkComboBox, values: list | None = None, variable: ctk.StringVar | ctk.IntVar | None = None, **kwargs):
         dropdown.configure(values=values, variable=variable, **kwargs)
+
+    def set_dropdown_cursor(self, dropdown: ctk.CTkComboBox, index: int | Literal['end']):
+        dropdown._entry.icursor(index)
     
+    def set_dropdown_selection_range(self, dropdown: ctk.CTkComboBox, index_start: int, index_end: int | Literal['end']):
+        dropdown._entry.select_range(index_start, index_end)
+
+    def delete_dropdown_entry(self, dropdown: ctk.CTkComboBox, index1: int, index2: int | Literal['end']):
+        dropdown._entry.delete(index1, index2)
+    
+    def insert_into_dropdown(self, dropdown: ctk.CTkComboBox, index1: int, value: str):
+        dropdown._entry.insert(index1, value)
+
     #general: .focus_set NOTE .focus is an older but compatible version of this, could update all general tkinter widget .focus function calls with focus_set()
 
 class VisualThemes(ctk.CTkBaseClass):
@@ -1098,22 +1110,32 @@ class TransactionListWindow(ctk.CTkToplevel):
     #methods
     def create_transaction_list(self, cell_transactions: list):
         self.transaction_checkbox_list: list = []
+        self.transaction_entity_label_list: list = []
+        self.transaction_date_label_list: list = []
         self.checkbox_statuses: list = []
         for index, transaction in enumerate(cell_transactions):
             transaction_checkbox = ctk.CTkCheckBox(self.cell_transaction_list_frame, text='${:,.2f}'.format(transaction[-1]), font=("Calibri", 18), command=lambda: self.app_logic.user_selects_transaction())
-            transaction_entity = ctk.CTkLabel(self.cell_transaction_list_frame, text="Entity Name", font=("Calibri", 18))
+            transaction_entity = ctk.CTkLabel(self.cell_transaction_list_frame, text=transaction[10], font=("Calibri", 18))
             transaction_date = ctk.CTkLabel(self.cell_transaction_list_frame, text=f'{transaction[9]}/{transaction[8]}', font=("Calibri", 18))
             self.transaction_checkbox_list.append(transaction_checkbox)
+            self.transaction_entity_label_list.append(transaction_entity)
+            self.transaction_date_label_list.append(transaction_date)
             self.checkbox_statuses.append(0)
             transaction_checkbox.grid(row=1+index, column=0, sticky="wn", pady=3, padx=1)
-            transaction_entity.grid(row=1+index, column=1, sticky="wn", pady=3, padx=1)
-            transaction_date.grid(row=1+index, column=2, sticky="wn", pady=3, padx=1)
+            transaction_entity.grid(row=1+index, column=1, sticky="wn", pady=1, padx=1)
+            transaction_date.grid(row=1+index, column=2, sticky="wn", pady=1, padx=1)
 
-    def add_transaction_to_list(self, transaction_amount: float):
+    def add_transaction_to_list(self, transaction_amount: float, transaction_entity: str, transaction_month: int, transaction_day: int):
         transaction_amount_str: str = '${:,.2f}'.format(transaction_amount)
-        new_transaction_checkbox = ctk.CTkCheckBox(self.cell_transaction_list_frame, text=transaction_amount_str + TrasactionStatuses.new.value, font=("Calibri", 15), command=lambda: self.app_logic.user_selects_transaction())
+        new_transaction_checkbox = ctk.CTkCheckBox(self.cell_transaction_list_frame, text=transaction_amount_str + TrasactionStatuses.new.value, font=("Calibri", 18), command=lambda: self.app_logic.user_selects_transaction())
+        new_transaction_entity_label = ctk.CTkLabel(self.cell_transaction_list_frame, text=transaction_entity, font=("Calibri", 18))
+        new_transaction_date_label = ctk.CTkLabel(self.cell_transaction_list_frame, text=f'{transaction_day}/{transaction_month}', font=("Calibri", 18))
         self.transaction_checkbox_list.append(new_transaction_checkbox)
+        self.transaction_entity_label_list.append(new_transaction_entity_label)
+        self.transaction_date_label_list.append(new_transaction_date_label)
         new_transaction_checkbox.grid(row=len(self.transaction_checkbox_list)+1, column=0, sticky="wn", pady=3, padx=1)
+        new_transaction_entity_label.grid(row=len(self.transaction_entity_label_list)+1, column=1, sticky="wn", pady=1, padx=1)
+        new_transaction_date_label.grid(row=len(self.transaction_date_label_list)+1, column=2, sticky="wn", pady=1, padx=1)
         self.checkbox_statuses.append(0)
     
     def draw_transaction_editor_window(self, add_new_button: bool, called_by_manager: bool=False):
@@ -1127,8 +1149,8 @@ class TransactionEditorWindow(ctk.CTkToplevel):
         
         #window chars
         self.title("Edit Transaction")
-        self.geometry("500x550")
-        self.minsize(500, 570)
+        self.geometry("500x670")
+        self.minsize(500, 670)
         self.grid_columnconfigure((0,1), weight=1, uniform='a')
         self.grid_rowconfigure((0), weight=1, uniform='a')
         self.grid_rowconfigure(1, weight=50)
@@ -1137,69 +1159,85 @@ class TransactionEditorWindow(ctk.CTkToplevel):
         # #variables
         self.app_logic = app_logic
         self.amount_entry_focused = False
+        self.add_new = add_new
         
         self.dropdown_tab_name = ctk.StringVar(value=self.app_logic.selected_cell_info_list[0])
         self.dropdown_account_name = ctk.StringVar(value=self.app_logic.selected_cell_info_list[1])
         self.dropdown_incexp = ctk.StringVar(value=self.app_logic.selected_cell_info_list[2])
         self.dropdown_category_name = ctk.StringVar(value=self.app_logic.selected_cell_info_list[3])
         self.dropdown_subcat_name = ctk.StringVar(value=self.app_logic.selected_cell_info_list[4])
+        self.dropdown_entity_name = ctk.StringVar(value="")
         self.entrybox_amount = ctk.StringVar(value="")
 
         #widgets
         self.transaction_editor_title = ctk.CTkLabel(self, text="Transaction Editor", text_color="#00aaff", font=('calibri', 24))
         self.transaction_form_frame = ctk.CTkFrame(self)
         self.annual_month_label = ctk.CTkLabel(self.transaction_form_frame, text="Annual/Month", text_color="#00aaff", font=('calibri', 24))
-        self.annual_month_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=self.app_logic.tab_title_list[:-1], variable=self.dropdown_tab_name, state='readonly', command=lambda annual=self.dropdown_tab_name: self.app_logic.set_dropdowns_to_annual_or_month(annual))
+        self.annual_month_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=self.app_logic.tab_title_list[:-1], variable=self.dropdown_tab_name, state='readonly', command=lambda annual=self.dropdown_tab_name: self.app_logic.set_dropdowns_to_annual_or_month(annual, add_new=self.add_new))
         self.date_selection_label = ctk.CTkLabel(self.transaction_form_frame, text="Date (dd/mm/yyyy)", text_color="#00aaff", font=('calibri', 24))
         self.date_selector = CTkDatePicker(self.transaction_form_frame, app_logic, self.app_logic.year, self.app_logic.current_tab_num, self.app_logic.day, False, False)
         self.account_label = ctk.CTkLabel(self.transaction_form_frame, text="Account", text_color="#00aaff", font=('calibri', 24))
         self.account_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=self.app_logic.budget_accounts_name_list, variable=self.dropdown_account_name, state='readonly')
         self.income_expense_label = ctk.CTkLabel(self.transaction_form_frame, text="Income or Expense", text_color="#00aaff", font=('calibri', 24))
-        self.income_expense_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=self.app_logic.income_expense_str_list, variable=self.dropdown_incexp, state='readonly', command=lambda incexp=self.dropdown_incexp: self.app_logic.set_dropdown_categories(incexp, set_default=True))
+        self.income_expense_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=self.app_logic.income_expense_str_list, variable=self.dropdown_incexp, state='readonly', command=lambda incexp=self.dropdown_incexp: self.app_logic.set_dropdown_categories(incexp, set_default=True, add_new=self.add_new))
         self.category_label = ctk.CTkLabel(self.transaction_form_frame, text="Category", text_color="#00aaff", font=('calibri', 24))
-        self.category_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=[], variable=self.dropdown_category_name, state='readonly', command=lambda category=self.dropdown_category_name: self.app_logic.set_dropdown_subcategories(category, set_default=True))
+        self.category_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=[], variable=self.dropdown_category_name, state='readonly', command=lambda category=self.dropdown_category_name: self.app_logic.set_dropdown_subcategories(category, set_default=True, add_new=True)) #Can be true each time b/c it will set to None or most recent entity
         self.subcategory_label = ctk.CTkLabel(self.transaction_form_frame, text="Sub-category", text_color="#00aaff", font=('calibri', 24))
-        self.subcategory_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=[], variable=self.dropdown_subcat_name, state='readonly')
+        self.subcategory_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=[], variable=self.dropdown_subcat_name, state='readonly', command=lambda _value=None: self.set_dropdown_entities_on_subcat_select()) #this will set entity default
+        self.entity_label = ctk.CTkLabel(self.transaction_form_frame, text="Entity", text_color="#00aaff", font=('calibri', 24))
+        self.entity_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=[], variable=self.dropdown_entity_name, command=lambda _value=None: self.app_logic.set_entity_delete_btn_status())
+        self.entity_delete_button = ctk.CTkButton(self.transaction_form_frame, width=40, text="Delete Entity", fg_color="#00aaff", font=("Calibri", 15), command=lambda: self.app_logic.delete_currently_selected_entity_from_db())
         self.amount_label = ctk.CTkLabel(self.transaction_form_frame, text="Amount", text_color="#00aaff", font=('calibri', 24))
         self.amount_entry = ctk.CTkEntry(self.transaction_form_frame, width=250, textvariable=self.entrybox_amount)
+        
 
-        self.transaction_editor_cancel_button = ctk.CTkButton(self, text="Cancel", fg_color="#00aaff", font=('calibri', 24), command=lambda: self.app_logic.close_editor_window(add_new, True))
-        self.transaction_editor_confirm_button = ctk.CTkButton(self, text="Confirm", fg_color="#00aaff", font=('calibri', 24), command=lambda: app_logic.confirm_transaction_editor(called_by_manager, add_new))
+        self.transaction_editor_cancel_button = ctk.CTkButton(self, text="Cancel", fg_color="#00aaff", font=('calibri', 24), command=lambda: self.app_logic.close_editor_window(self.add_new, True))
+        self.transaction_editor_confirm_button = ctk.CTkButton(self, text="Confirm", fg_color="#00aaff", font=('calibri', 24), command=lambda: app_logic.confirm_transaction_editor(called_by_manager, self.add_new))
 
         #layout
         self.transaction_editor_title.grid(row=0, column=0, columnspan=2, sticky="n")
 
         self.transaction_form_frame.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5,0))
-        self.annual_month_label.pack(pady=5)
-        self.annual_month_dropdown.pack()
-        self.date_selection_label.pack()
-        self.date_selector.pack()
-        self.account_label.pack(pady=5)
-        self.account_dropdown.pack()
-        self.income_expense_label.pack(pady=5)
-        self.income_expense_dropdown.pack()
-        self.category_label.pack(pady=5)
-        self.category_dropdown.pack()
-        self.subcategory_label.pack(pady=5)
-        self.subcategory_dropdown.pack()
-        self.amount_label.pack(pady=5)
-        self.amount_entry.pack()
+        self.transaction_form_frame.grid_rowconfigure((0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15), weight=1, uniform='a')
+        self.transaction_form_frame.grid_columnconfigure(1, weight=2, uniform='a')
+        self.transaction_form_frame.grid_columnconfigure((0,2), weight=1, uniform='a')
 
-        self.transaction_editor_cancel_button.grid(row=2, column=0, sticky="w", padx=10, pady=(0,5))
-        self.transaction_editor_confirm_button.grid(row=2, column=1, sticky="e", padx=10, pady=(0,5))
+        self.annual_month_label.grid(row=0, column=1, sticky="new", pady=0, ipady=0)
+        self.annual_month_dropdown.grid(row=1, column=1, sticky="new", pady=0, ipady=0)
+        self.date_selection_label.grid(row=2, column=1, sticky="new", pady=0, ipady=0)
+        self.date_selector.grid(row=3, column=1, sticky="new", pady=0, ipady=0)
+        self.account_label.grid(row=4, column=1, sticky="new", pady=0, ipady=0)
+        self.account_dropdown.grid(row=5, column=1, sticky="new", pady=0, ipady=00)
+        self.income_expense_label.grid(row=6, column=1, sticky="new", pady=0, ipady=0)
+        self.income_expense_dropdown.grid(row=7, column=1, sticky="new", pady=0, ipady=00)
+        self.category_label.grid(row=8, column=1, sticky="new", pady=0, ipady=0)
+        self.category_dropdown.grid(row=9, column=1, sticky="new", pady=0, ipady=0)
+        self.subcategory_label.grid(row=10, column=1, sticky="new", pady=0, ipady=0)
+        self.subcategory_dropdown.grid(row=11, column=1, sticky="new", pady=0, ipady=0)
+        self.entity_label.grid(row=12, column=1, sticky="new", pady=0, ipady=0)
+        self.entity_dropdown.grid(row=13, column=1, sticky="new", pady=0, ipady=0)
+        self.entity_delete_button.grid(row=13, column=2, sticky="new", pady=0, ipady=0, padx=5)
+        self.amount_label.grid(row=14, column=1, sticky="new", pady=0, ipady=0)
+        self.amount_entry.grid(row=15, column=1, sticky="new", pady=0, ipady=0)
 
-        if add_new: #if "add new" button pressed, dropdowns should be disabled
+        self.transaction_editor_cancel_button.grid(row=2, column=0, sticky="w", padx=10, pady=(3,3))
+        self.transaction_editor_confirm_button.grid(row=2, column=1, sticky="e", padx=10, pady=(3,3))
+
+        if self.add_new: #if "add new" button pressed, dropdowns should be disabled
             self.annual_month_dropdown.configure(state="disabled")
             self.account_dropdown.configure(state="disabled")
             self.income_expense_dropdown.configure(state="disabled")
             self.category_dropdown.configure(state="disabled")
             self.subcategory_dropdown.configure(state="disabled")   
             #set default date, based on selected tab
+            if self.app_logic.current_tab_num == 0: #annual transactions cannot currently have a date
+                self.date_selector.calendar_button.configure(state="disabled")  
+                self.date_selector.date_entry.configure(state="disabled")  
             if self.app_logic.current_tab_num == self.app_logic.month:
                 self.date_selector.set_month_and_day(self.app_logic.month, self.app_logic.day) #new transaction takes today as date      
             elif self.app_logic.current_tab_num != self.app_logic.month:
                 self.date_selector.set_month_and_day(self.app_logic.current_tab_num, 1) #new transaction takes current tab, and 1 as date
-        elif not add_new:
+        elif not self.add_new:
             self.entrybox_amount.set(app_logic.cell_transactions_from_db[app_logic.current_transaction_to_edit][-1])
             #set date based on selected tab and existing transaction data
             selected_transaction_day = app_logic.cell_transactions_from_db[app_logic.current_transaction_to_edit][9]
@@ -1217,10 +1255,13 @@ class TransactionEditorWindow(ctk.CTkToplevel):
                                                      selected_transaction_day) #use existing transaction date
         
         app_logic.give_logic_temp_window_acess(transaction_editor_window=self)
-        app_logic.set_dropdown_categories(self.dropdown_incexp.get(), False)
+        app_logic.set_dropdown_categories(self.dropdown_incexp.get(), False, self.add_new)        
 
         #events
-        self.amount_entry.bind("<FocusIn>", app_logic.set_bindings_to_amount_entry)
+        self.entity_dropdown.bind("<FocusIn>", app_logic.select_entity_text_on_focus)
+        self.entity_dropdown.bind("<KeyRelease>", app_logic.set_entity_delete_btn_status)
+        
+        self.amount_entry.bind("<FocusIn>", app_logic.set_bindings_to_amount_entry)        
         
         self.annual_month_dropdown.bind("<FocusIn>", app_logic.keep_focus_in_entry)
         self.account_dropdown.bind("<FocusIn>", app_logic.keep_focus_in_entry)
@@ -1232,6 +1273,9 @@ class TransactionEditorWindow(ctk.CTkToplevel):
 
     def set_returnkey_binding(self): #links enter key to confirm button
         self.amount_entry.bind("<Return>", self.app_logic.returnkey_pressed_in_amount_entry)
+
+    def set_dropdown_entities_on_subcat_select(self, _value: str | None = None):        
+        self.app_logic.set_dropdown_entities(True) #Can be true each time b/c it will set to None or most recent entity
 
 
 
