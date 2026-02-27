@@ -211,11 +211,11 @@ class AppLogic():
         #special case logic
         if self.current_page == 1 and self.selected_system_name == SystemNames.manage_budget_system.name: #entering manager, set continue button text to 'Main Menu'
             self.visual_functions.configure_widget(self.nav_panel.button_continue, new_text="Main Menu")
-        if self.at_system_end == True and self.selected_system_name == SystemNames.manage_budget_system.name: #at manager, continue btn should raise main menu and clear manager
-            self.clear_manager_close_conn()
+        if self.at_system_end == True and self.selected_system_name == SystemNames.manage_budget_system.name: #at manager, continue btn should raise main menu and clear manager            
             self.nav_panel.disable_manager_buttons()
             self.visual_functions.raise_panel(self.main_menu)
-            self.visual_functions.configure_widget(self.nav_panel.button_continue, new_text="Continue")            
+            self.visual_functions.configure_widget(self.nav_panel.button_continue, new_text="Continue")
+            self.clear_manager_close_conn_reset_yearly_calc_switch()            
         if self.at_system_end == True and self.selected_system_name == SystemNames.create_new_system.name: #at account selection,user can return to main or go to manager
             self.account_selection_confirmed()
 
@@ -225,7 +225,7 @@ class AppLogic():
             if self.selected_system_name == SystemNames.manage_budget_system.name: #at manager, reconfig nav buttons, and clear treeview
                 self.nav_panel.disable_manager_buttons()
                 self.visual_functions.configure_widget(self.nav_panel.button_continue, new_text="Continue")
-                self.clear_manager_close_conn()
+                self.clear_manager_close_conn_reset_yearly_calc_switch()
                 
         #standard page turning logic
         if self.current_page > 0: #not at first page, go to previous page
@@ -720,6 +720,7 @@ class AppLogic():
         except ValueError:
             pass
         self.visual_functions.destroy_widget(entrybox)
+        self.create_new_budget_editor.entry_box_exists = False
 
     #Continue button clicked-check budget table entries
     def check_budget_table(self):
@@ -831,7 +832,8 @@ class AppLogic():
             self.visual_functions.configure_hierarchy_values(budget_table, "subcatfont", "Calibri", 13) 
         if self.manage_budget_table.cell_highlight_exists == True:
             self.visual_functions.destroy_widget(self.manage_budget_table.cell_highlight)
-            self.manage_budget_table.cell_highlight_exists = False     
+            self.manage_budget_table.cell_highlight_exists = False  
+        self.visual_functions.set_active_tab(self.manage_budget_table.manage_budget_tabs, self.tab_title_list[self.month])
         self.fetch_budget_data()        
         self.fetch_transaction_data_from_db()
         self.budget_displayed_in_manager = True
@@ -890,7 +892,8 @@ class AppLogic():
             \nbudget_section_name = a string that fills the section heading in each table (income/expenses)
             \nbudget_section_id = a string ID associated with each section in database (str is manadatory for insert method)'''
             budget_section  = self.visual_functions.insert_into_hierarchy(table, "", 'end', text_to_insert='', row_values=[budget_section_name], display_open=True, tags=(budget_section_id, "incexpfont", "incexpfontred", HierarchyLevel.incexp.value))
-            self.budget_section_list.append(budget_section)
+            if len(self.budget_section_list) < 2:
+                self.budget_section_list.append(budget_section)
             if table_index == 0: #annual tab
                 self.display_budget_category_data(table, budget_section, budget_section_id, 'annual')
             elif table_index < 13: #monthly
@@ -910,8 +913,8 @@ class AppLogic():
                     if subcat[4] == category[2]: #match subcat's cat id to cat id
                         subcat_display = [subcat[0], subcat[1]] #subcat name, budget amount
                         [subcat_display.append("") for i in range(2, len(self.budget_table_headings))]
-                        if tab_type == "yearly total" and subcat[3] == 1: #add monthly, * 12.  Would yearly total, annuals be caught by the 'else' below?
-                            subcat_display[1] = '${:,.2f}'.format(float(subcat[1].replace(",", "").strip("$")) * self.month)
+                        if tab_type == "yearly total" and subcat[3] == 1: #initial table creation, defaults to current month calculations
+                            subcat_display[1] = '${:,.2f}'.format(float(subcat[1].replace(",", "").strip("$")) * self.month)                        
                         elif tab_type == "annual" and subcat[3] == 1 or tab_type == 'monthly' and subcat[3] == 2: #annual tab+monthly subcat or monthly tab+annual subcat 
                             subcat_display = [subcat_display[i] if i <= 1 else "----------" for i in range(len(subcat_display))] 
                         current_subcat_values = self.visual_functions.insert_into_hierarchy(table, budget_category, 'end', row_values=(subcat_display), display_open=True, tags=(subcat[2], "subcatfont", HierarchyLevel.subcategory.value))     
@@ -983,9 +986,9 @@ class AppLogic():
         row_transaction_total = 0
         for col in range(2, len(self.budget_accounts_data) + 2): 
             row_transaction_total += float(subcat_data[col].replace(",", "").strip("$"))
-        subcat_data[-2] = '${:,.2f}'.format(row_transaction_total) #
+        subcat_data[-2] = '${:,.2f}'.format(row_transaction_total)
 
-    def calculate_section_totals(self, table, section: str):
+    def calculate_section_totals(self, table, section: str):       
         section_categories: tuple[str, ...] = self.visual_functions.get_hierarchy_item_children(table, section) 
         section_totals_list: list[float] = [0 for i in range(len(self.visual_functions.get_hierarchy_content(table, section_categories[0], "values"))-1)]
         for cat in section_categories:
@@ -993,8 +996,11 @@ class AppLogic():
             for i, col in enumerate(cat_col_totals):
                 section_totals_list[i] += col
         section_row_values = self.visual_functions.get_hierarchy_content(table, section, 'values')
-        for total in section_totals_list:
-            section_row_values.append('${:,.2f}'.format(total))
+        for i, total in enumerate(section_totals_list):
+            if len(section_row_values) > i+1: #matching col exists, replace
+                section_row_values[i+1] = '${:,.2f}'.format(total)
+            else: ##matching does not exist yet, append
+                section_row_values.append('${:,.2f}'.format(total))
         self.visual_functions.get_hierarchy_item(table, section, new_values=section_row_values, display_open=True)
 
     def calculate_category_subtotals(self, table, cat: str)-> list[float]:        
@@ -1009,8 +1015,11 @@ class AppLogic():
                 else:
                     category_totals_list[i] += float(subcat_values[i+1].replace(",", "").strip("$"))              
         total_row_values = self.visual_functions.get_hierarchy_content(table, subcat_items[-1], "values")
-        for total in category_totals_list:
-            total_row_values.append('${:,.2f}'.format(total))
+        for i, total in enumerate(category_totals_list):
+            if len(total_row_values) > i+1: #matching col exists, replace
+                total_row_values[i+1] = '${:,.2f}'.format(total)
+            else: #matching col does not exist yet, append  
+                total_row_values.append('${:,.2f}'.format(total))        
         self.visual_functions.get_hierarchy_item(table, subcat_items[-1], new_values=total_row_values)
         return category_totals_list
     
@@ -1065,18 +1074,18 @@ class AppLogic():
         else: #actual surplus
             self.visual_functions.configure_widget(self.manage_budget_table.actual_surplus_shortfall_amount, new_text=actual_surplus_shortfall, new_text_color="#00CC00")
             
-    def calculate_and_display_yearly_totals(self, yearly_total_treeview, section: str):
+    def calculate_and_display_yearly_totals(self, yearly_total_treeview, section: str, mode: int = 0):
         '''called by event:selection of yearly tab, so totals are calculated only when the tab is selected for the first time
-        \nsubsequent selections of the tab do not re-calculate, instead modifications are made using self.update_indicated_cell()'''
-        #disable manager window buttons NOTE: when we explore the possibilty of reviewing years transactions from yearly total tab this will have to be changed
-        self.visual_functions.configure_widget(self.nav_panel.add_new_transaction_button, new_state='disabled')
-        self.visual_functions.configure_widget(self.nav_panel.edit_transactions_button, new_state='disabled')
+        \nsubsequent selections of the tab do not re-calculate, instead modifications are made using self.update_indicated_cell()'''                    
+        month = self.month
+        if mode == 1: #year mode
+            month = 12        
         for category in self.visual_functions.get_hierarchy_item_children(yearly_total_treeview, section):                
             for column, heading in enumerate(self.budget_table_headings[2:-1]): #exclude label col, and surplus/shortfall col
                 for subcat in self.visual_functions.get_hierarchy_item_children(yearly_total_treeview, category)[:-1]: #exclude total row (handled by calculate_section_totals)
                     current_yearly_total_cell: float = 0.0
                     current_yearly_total_row_data: list = self.visual_functions.get_hierarchy_content(yearly_total_treeview, subcat, 'values')
-                    for tab in self.manage_budget_table.treeview_list[:self.month + 1]:
+                    for tab in self.manage_budget_table.treeview_list[:month + 1]:
                         current_cell: str = self.visual_functions.get_hierarchy_content(tab, subcat, 'values')[column+2]
                         if current_cell == "" or current_cell == "----------": 
                             pass #cell is blank or dashed out, skip NOTE: unlike calculate_column_subtotals we want both annual and monthly budget amounts
@@ -1089,8 +1098,39 @@ class AppLogic():
         self.calculate_surplus_shortfall_column(yearly_total_treeview, section)    
         for category in self.visual_functions.get_hierarchy_item_children(yearly_total_treeview, section):
             for subcat in self.visual_functions.get_hierarchy_item_children(yearly_total_treeview, category):
-                self.calculate_surplus_shortfall_column(yearly_total_treeview, subcat)           
-    
+                self.calculate_surplus_shortfall_column(yearly_total_treeview, subcat) 
+
+    def update_yearly_total_budget_amounts(self, yearly_total_treeview, mode: int):  
+        '''This method updates the budgeted amount in the yearly total tab, when switching btw current month and whole year modes'''      
+        yearly_total_subcat_list: list = []
+        for section in self.budget_section_list:
+            for category in self.visual_functions.get_hierarchy_item_children(yearly_total_treeview, section):
+                for subcat in self.visual_functions.get_hierarchy_item_children(yearly_total_treeview, category)[:-1]:
+                    yearly_total_subcat_list.append(subcat)
+        for i, subcat_item in enumerate(yearly_total_subcat_list):
+            subcat_data: list = self.visual_functions.get_hierarchy_content(yearly_total_treeview, subcat_item, 'values')
+            subcat_budget_amt: str = self.subcat_budgetamounts[i][1]
+            subcat_annual_monthly: int = self.subcat_budgetamounts[i][3]
+            if subcat_annual_monthly == 2: #budget amt is annual (amount not multiplied)
+                subcat_data[1] = subcat_budget_amt
+            elif subcat_annual_monthly == 1 and mode == 0: #month mode
+                subcat_data[1] = '${:,.2f}'.format(float(subcat_budget_amt.replace(",", "").strip("$")) * self.month)
+            elif subcat_annual_monthly == 1 and mode == 1: #year mode
+                subcat_data[1] = '${:,.2f}'.format(float(subcat_budget_amt.replace(",", "").strip("$")) * 12)
+            self.visual_functions.get_hierarchy_item(yearly_total_treeview, subcat_item, new_values=subcat_data)
+     
+    def switch_yearly_total_calculations(self, mode):
+        '''called by yearly_calculation_switch in ManageBudget class, changes calculation of yearly total data
+        \nbetween two modes, including upto current month, vs whole year (mode)'''
+        self.update_yearly_total_budget_amounts(self.manage_budget_table.treeview_list[13], mode)        
+        self.calculate_and_display_yearly_totals(self.manage_budget_table.treeview_list[13], self.budget_section_list[0], mode)
+        self.calculate_and_display_yearly_totals(self.manage_budget_table.treeview_list[13], self.budget_section_list[1], mode)
+        self.calculate_or_update_surplus_shortfall_summary(self.manage_budget_table.treeview_list[13])  
+        if mode == 0: #month mode
+            self.visual_functions.configure_widget(self.manage_budget_table.yearly_calculation_switch, new_text="to Current Month")                               
+        if mode == 1: #year mode
+            self.visual_functions.configure_widget(self.manage_budget_table.yearly_calculation_switch, new_text="for Whole Year")              
+            
     def store_budget_structure(self):
         '''stores the structure of the budgets strings, including income/expense, categories, subcategories and annual/monthly,
         \nthis is used in the editor window to set dropdown values based on their parent in this structure'''
@@ -1108,16 +1148,22 @@ class AppLogic():
                     temp_section_dict[category[0]] = [temp_subcat_list, temp_annual_monthly_list]
             self.budget_structure[incexp[0]] = temp_section_dict
     
-    def set_active_treeview(self):
+    def set_active_treeview(self):        
         if self.manage_budget_table.cell_highlight_exists == True:
             self.visual_functions.destroy_widget(self.manage_budget_table.cell_highlight)
             self.manage_budget_table.cell_highlight_exists = False
         self.current_tab_num: int = self.visual_functions.get_tab_index(self.manage_budget_table.manage_budget_tabs, 
                                                                    self.visual_functions.get_active_tab(self.manage_budget_table.manage_budget_tabs))        
+        self.manage_budget_table.set_bindings(self.current_tab_num) 
         if self.budget_displayed_in_manager == True and self.current_tab_num != 13: #bind cell click functions, (reset manager buttons to disabled)
-            self.set_budget_button_status(False)
-            self.manage_budget_table.set_bindings(self.current_tab_num)            
+            self.set_budget_button_status(False) #set buttons to disabled when switching tabs  
+            self.manage_budget_table.set_yearly_total_switch_visible(False)                    
+            self.visual_functions.configure_widget(self.nav_panel.edit_transactions_button, new_text="Edit Transactions")
         elif self.budget_displayed_in_manager == True and self.current_tab_num == 13: #do not apply bindings to yearly total tab (prevents editing of this treeview)
+            #disable manager window buttons (and rename edit button)
+            self.set_budget_button_status(False)
+            self.manage_budget_table.set_yearly_total_switch_visible(True)
+            self.visual_functions.configure_widget(self.nav_panel.edit_transactions_button, new_text="Transactions List")
             if self.yearly_total_tab_selected == False:
                 self.calculate_and_display_yearly_totals(self.manage_budget_table.treeview_list[13], self.budget_section_list[0]) #income
                 self.calculate_and_display_yearly_totals(self.manage_budget_table.treeview_list[13], self.budget_section_list[1]) #expenses
@@ -1177,7 +1223,8 @@ class AppLogic():
         
     def set_budget_button_status(self, proper_cell: bool):
         if proper_cell: #proper cell selected, enable management buttons in nav panel
-            self.visual_functions.configure_widget(self.nav_panel.add_new_transaction_button, new_state='normal')
+            if self.current_tab_num != 13: #only activate edit button if tab is not yearly total
+                self.visual_functions.configure_widget(self.nav_panel.add_new_transaction_button, new_state='normal')            
             self.visual_functions.configure_widget(self.nav_panel.edit_transactions_button, new_state='normal')
         else: 
             self.visual_functions.configure_widget(self.nav_panel.add_new_transaction_button, new_state='disabled')
@@ -1192,12 +1239,13 @@ class AppLogic():
             elif self.selected_row_data[self.selected_column] != "" or self.selected_row_data[self.selected_column] != "$0.00": #non-empty cell cbl clicked, raise transaction list
                 self.visual_functions.invoke_button(self.nav_panel.edit_transactions_button)
 
-    def clear_manager_close_conn(self):
+    def clear_manager_close_conn_reset_yearly_calc_switch(self):
         self.manage_budget_table.destroy_management_treeviews()
         self.budget_displayed_in_manager = False
         #NOTE: could reset tab selection here if desired (could also do it on load of budget: display_budget_management_table)
         self.manage_budget_cur.close()
         self.manage_budget_conn.close()
+        self.visual_functions.switch_deselect(self.manage_budget_table.yearly_calculation_switch)
 
     #TRANSACTION LIST WINDOW
     def get_selected_cell_info(self, add_new_from_navpanel): 
@@ -1218,7 +1266,8 @@ class AppLogic():
 
     def load_cell_transactions_from_db(self):       
         #load transaction information for selected cell from DB (eventually transaction info will include day and entity)        
-        self.manage_budget_cur.execute('''select Transactions.id, 
+        if self.current_tab_num == 13: #if yearly total tab, load ALL transactions
+            self.manage_budget_cur.execute('''select Transactions.id, 
                                         [Category Name].[Income_expense_id],
                                         [Category Name].Category,
                                         [Category Name].id,
@@ -1237,13 +1286,38 @@ class AppLogic():
                                        join [Accounts] on Transactions.[Account_Type_id] = Accounts.id
                                        left join [Entity] on Transactions.[Entity_id] = Entity.id
                                        where ([Sub_Category_id], 
-                                              [Account_Type_id], 
-                                              Month) = (?, ?, ?)''',
+                                              [Account_Type_id]) = (?, ?)''',
                                         (self.selected_row_tags[0], 
-                                         self.budget_accounts_data[self.selected_column-2][1],
-                                         self.current_tab_num))
+                                         self.budget_accounts_data[self.selected_column-2][1]))
+        else: #load transactions doe corresponding month
+            self.manage_budget_cur.execute('''select Transactions.id, 
+                                            [Category Name].[Income_expense_id],
+                                            [Category Name].Category,
+                                            [Category Name].id,
+                                            [Sub-Category Name].[Sub-Category],
+                                            [Sub-Category Name].id, 
+                                            Accounts.[Account Name],
+                                            Accounts.id,
+                                            Transactions.Month,
+                                            Transactions.Day, 
+                                            Entity.Description,
+                                            Transactions.[Entity_id],                                        
+                                            Transactions.Amount 
+                                            from Transactions 
+                                        join [Category Name] on Transactions.[Category_id] = [Category Name].id
+                                        join [Sub-Category Name] on Transactions.[Sub_Category_id] = [Sub-Category Name].id
+                                        join [Accounts] on Transactions.[Account_Type_id] = Accounts.id
+                                        left join [Entity] on Transactions.[Entity_id] = Entity.id
+                                        where ([Sub_Category_id], 
+                                                [Account_Type_id], 
+                                                Month) = (?, ?, ?)''',
+                                            (self.selected_row_tags[0], 
+                                            self.budget_accounts_data[self.selected_column-2][1],
+                                            self.current_tab_num))
         self.cell_transactions_from_db: list = self.manage_budget_cur.fetchall()
         self.transaction_list_window.create_transaction_list(self.cell_transactions_from_db)
+        if self.current_tab_num == 13: 
+            self.transaction_list_window.disable_list_window_widgets()
 
         #configure transaction list labels to display selected cell info
         self.visual_functions.configure_widget(self.transaction_list_window.transactions_for_info, new_text=self.selected_cell_info_list[0] + ", " + self.selected_cell_info_list[1] + ", " + self.selected_cell_info_list[2])
@@ -1279,6 +1353,9 @@ class AppLogic():
                 self.visual_functions.checkbox_deselect(self.transaction_list_window.transaction_checkbox_list[i])
     
     def confirm_transaction_list(self):
+        if self.current_tab_num == 13: #list in yearly total tab, only for viewing, no updates neeeded
+            self.visual_functions.destroy_widget(self.transaction_list_window)
+            return 'break'
         new_cell_total: float = 0
         transaction_status: str | None = None
         for i, box in enumerate(self.transaction_list_window.transaction_checkbox_list):

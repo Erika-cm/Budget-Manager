@@ -61,6 +61,7 @@ class VisualFunctions(ctk.CTkBaseClass):
     \ninvoke_button(): calls the command function/method attached to a button using .invoke()
     \nDROPDOWN MENU (CALLED COMBO BOX IN CTK)
     \nconfigure_dropdown(): takes and alters optional args for values, and variable in addtion to standard ctk widget properties using, .configure()
+    \nswitch_deselect: sets a swtich to off/0 without invoking command, using .deselect()
     '''
     def __init__(self, master):
         super().__init__(master)
@@ -324,6 +325,10 @@ class VisualFunctions(ctk.CTkBaseClass):
     
     def insert_into_dropdown(self, dropdown: ctk.CTkComboBox, index1: int, value: str):
         dropdown._entry.insert(index1, value)
+
+    #SWTICH
+    def switch_deselect(self, switch: ctk.CTkSwitch):
+        switch.deselect()
 
     #general: .focus_set NOTE .focus is an older but compatible version of this, could update all general tkinter widget .focus function calls with focus_set()
 
@@ -683,9 +688,12 @@ class EditBudget(ctk.CTkFrame):
         self.budget_entry = ctk.CTkEntry(self.budget_table, width=self.box_width, height=self.box_height)
         self.budget_entry.place(x=self.box_x_pos, y=self.box_y_pos)
         self.entry_box_exists = True
-        self.budget_entry.focus()
+        self.after(50, self.set_entry_box_focus)
         self.budget_entry.bind("<Return>", lambda event: self.app_logic.update_budget_table_entry(event, self.budget_entry))
         self.budget_entry.bind("<FocusOut>", lambda event: self.app_logic.update_budget_table_entry(event, self.budget_entry))
+
+    def set_entry_box_focus(self):
+        self.budget_entry.focus_set()
 
     def drag_scrollbar(self, *args): 
         self.budget_table.yview(*args)
@@ -926,7 +934,7 @@ class ManageBudget(ctk.CTkFrame):
     def __init__(self, parent, system_name: SystemNames, app_logic: AppLogic, visual_theme: VisualThemes):
         super().__init__(master=parent)
         self.configure(corner_radius = 0)
-        self.grid_columnconfigure((0,1), weight=1)
+        self.grid_columnconfigure((0,1,2,3), weight=1)
         self.grid_rowconfigure(0, weight=1) 
         self.grid_rowconfigure(1, weight=1)    
         self.grid_rowconfigure(2, weight=50) 
@@ -949,28 +957,34 @@ class ManageBudget(ctk.CTkFrame):
         self.actual_surplus_shortfall_label = ctk.CTkLabel(self.actual_surplus_shortfall_frame, text="Actual Surplus/Shortfall: ", text_color="#cccccc", font=("Calibri", 18))
         self.actual_surplus_shortfall_amount = ctk.CTkLabel(self.actual_surplus_shortfall_frame, text="$0.00", font=("Calibri", 18), fg_color="#272727")
         
+        self.padding_frame = ctk.CTkFrame(self, fg_color="transparent", height=1)
+        self.yearly_calculation_mode = ctk.IntVar(value=0)
+        self.yearly_calculation_label = ctk.CTkLabel(self, text="Calculate Yearly Totals:", text_color="#027CB9", font=('calibri', 18))
+        self.yearly_calculation_switch = ctk.CTkSwitch(self, text="to Current Month", font=("Calibri", 16), variable=self.yearly_calculation_mode, command=lambda : self.app_logic.switch_yearly_total_calculations(self.yearly_calculation_mode.get()))
+        
         self.manage_budget_table_frame = ctk.CTkFrame(self)
         self.manage_budget_tabs = ctk.CTkTabview(self.manage_budget_table_frame, command=app_logic.set_active_treeview)
         self.tab_list = []
         for tab in self.app_logic.tab_title_list:
             new_tab = self.manage_budget_tabs.add(tab)
-            self.tab_list.append(new_tab)      
+            self.tab_list.append(new_tab)             
         
         #layout
-        self.manage_budget_label.grid(row=0, column=0, columnspan=2, sticky='new')
+        self.manage_budget_label.grid(row=0, column=0, columnspan=4, sticky='new')
 
-        self.budgeted_surplus_shortfall_frame.grid(row=1, column=0, sticky="ne", padx=10, pady=2)        
+        self.budgeted_surplus_shortfall_frame.grid(row=1, column=1, sticky="ne", padx=10, pady=2)        
         self.budgeted_surplus_shortfall_amount.pack(side="right", padx=2, pady=2)
         self.budgeted_surplus_shortfall_label.pack(side="right", padx=2, pady=2)
-        self.actual_surplus_shortfall_frame.grid(row=1, column=1, sticky="nw", padx=10, pady=2)
+        self.actual_surplus_shortfall_frame.grid(row=1, column=2, sticky="nw", padx=10, pady=2)
         self.actual_surplus_shortfall_label.pack(side="left", padx=2, pady=2)
-        self.actual_surplus_shortfall_amount.pack(side="left", padx=2, pady=2)
+        self.actual_surplus_shortfall_amount.pack(side="left", padx=2, pady=2)        
         
-        self.manage_budget_table_frame.grid(row=2, column=0, columnspan=2, padx=10, sticky='nsew')
+        self.manage_budget_table_frame.grid(row=2, column=0, columnspan=4, padx=10, sticky='nsew')
         self.manage_budget_tabs.pack(expand=True, fill='both', pady=5, padx=5)
 
         app_logic.add_to_nav_map(system_name.value, self, self.page_func)
         visual_theme.apply_style_table(self)
+        self.set_yearly_total_switch_visible(False)        
         
     #methods and events
     def create_management_treeviews(self):
@@ -983,7 +997,7 @@ class ManageBudget(ctk.CTkFrame):
             self.budget_table.pack(side='left', expand=True, fill='both', pady=5, padx=5)          
             self.budget_table.configure(yscrollcommand=self.budget_table_scrollbar.set)   
             self.set_bindings(0) #NOTE: if default tab is ever set by date or last user interaction, this 0 will need to be set by that functionality
-
+        
     def destroy_management_treeviews(self):
         for treeview, scrollbar in zip(self.treeview_list, self.scrollbar_list):
             treeview.destroy()
@@ -994,6 +1008,16 @@ class ManageBudget(ctk.CTkFrame):
     def set_bindings(self, active_tab: int):
         self.treeview_list[active_tab].bind("<Button-1>", lambda event: self.app_logic.budget_manager_single_click(event, self.treeview_list[active_tab]))
         self.treeview_list[active_tab].bind("<MouseWheel>", lambda event: self.treeview_scroll(event)) #also bind to summary columns?
+
+    def set_yearly_total_switch_visible(self, activate: bool):
+        if not activate:
+            self.padding_frame.grid_forget()
+            self.yearly_calculation_label.grid_forget()
+            self.yearly_calculation_switch.grid_forget()
+        elif activate:
+            self.padding_frame.grid(row=1, column=0)
+            self.yearly_calculation_label.grid(row=0, column=3, padx=2, pady=0)
+            self.yearly_calculation_switch.grid(row=1, column=3, padx=2, pady=1)
 
     def draw_cell_highlight(self, hierarchy_name: ttk.Treeview, proper_cell: bool):
         if proper_cell:
@@ -1109,7 +1133,7 @@ class TransactionListWindow(ctk.CTkToplevel):
 
     #methods
     def create_transaction_list(self, cell_transactions: list):
-        self.transaction_checkbox_list: list = []
+        self.transaction_checkbox_list: list[ctk.CTkCheckBox] = []
         self.transaction_entity_label_list: list = []
         self.transaction_date_label_list: list = []
         self.checkbox_statuses: list = []
@@ -1124,6 +1148,11 @@ class TransactionListWindow(ctk.CTkToplevel):
             transaction_checkbox.grid(row=1+index, column=0, sticky="wn", pady=3, padx=1)
             transaction_entity.grid(row=1+index, column=1, sticky="wn", pady=1, padx=1)
             transaction_date.grid(row=1+index, column=2, sticky="wn", pady=1, padx=1)
+
+    def disable_list_window_widgets(self):
+        for checkbox in self.transaction_checkbox_list:
+            checkbox.configure(state="disabled")
+        self.transaction_list_add_new_button.configure(state="disabled")
 
     def add_transaction_to_list(self, transaction_amount: float, transaction_entity: str, transaction_month: int, transaction_day: int):
         transaction_amount_str: str = '${:,.2f}'.format(transaction_amount)
