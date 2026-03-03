@@ -139,7 +139,10 @@ class CTkDatePicker(ctk.CTkFrame):
             next_month_button = ctk.CTkButton(self.calendar_frame, text=">", width=5, command=self.next_month)
             next_month_button.grid(row=0, column=6)
 
-        # Days of the week header
+        # Days of the week header (labels)
+        #this code sets Sunday to be start of week, BUT the actual days of the month grid, needs to be altered to work in this format
+        '''calendar.setfirstweekday(calendar.SUNDAY)       
+        days = [calendar.day_name[(i + calendar.firstweekday()) % 7][:3].capitalize() for i in range(7)]'''
         days = [calendar.day_name[i][:3].capitalize() for i in range(7)]
         for i, self.day_str in enumerate(days):
             lbl = ctk.CTkLabel(self.calendar_frame, text=self.day_str)

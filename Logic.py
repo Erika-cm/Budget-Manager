@@ -1520,7 +1520,8 @@ class AppLogic():
                 self.visual_functions.delete_dropdown_entry(self.transaction_editor_window.entity_dropdown, 0, 'end')
                 self.visual_functions.insert_into_dropdown(self.transaction_editor_window.entity_dropdown, 0, 'None')
                 self.transaction_editor_window.entity_dropdown.update()
-                self.visual_functions.configure_dropdown(self.transaction_editor_window.entity_dropdown, values=self.entity_dropdown_list)              
+                self.visual_functions.configure_dropdown(self.transaction_editor_window.entity_dropdown, values=self.entity_dropdown_list) 
+                self.visual_functions.grid_forget_widget(self.transaction_editor_window.confirm_entity_delete_button)                             
                 break
 
     def close_editor_window(self, add_new: bool, cancel_edit: bool = False):

@@ -24,6 +24,9 @@ class VisualFunctions(ctk.CTkBaseClass):
     \nextract_int_var(): extracts a int from a ctk int var using .get()
     \nextract_str_var(): extracts a string from a ctk string var using .get()
     \nset_grab_to_widget(): this directs all events to the indicated widget (preventing interaction with others) using .grab_set()
+    \ngrid_forget_widget(): will remove widget from grid using grid_forget() (does not destroy the widget)
+    \nplace_forget_widget(): will remove placed widget using place_forget() (does not destroy the widget)
+    \npack_forget_widget(): will remove packed widget using pack_forget() (does not destroy the widget)
     \nHIERARCHY/TREEVIEW
     \ninsert_into_hierarchy(): inserts text and values into a ttk Treeview widget using .insert()
     \ndelete_hierachy_item(): deletes a treeview item and all its children using .delete()
@@ -132,6 +135,15 @@ class VisualFunctions(ctk.CTkBaseClass):
         \nparent = reference to parent CTK widget (frame,window)
         \nNOTE: displayof not implemented'''
         return parent.winfo_containing(rootX=x, rootY=y)
+    
+    def grid_forget_widget(self, widget: ctk.CTkBaseClass):
+        widget.grid_forget()
+
+    def place_forget_widget(self, widget: ctk.CTkBaseClass):
+        widget.place_forget()
+
+    def pack_forget_widget(self, widget: ctk.CTkBaseClass):
+        widget.pack_forget()
 
     #TREEVIEW
     @overload
@@ -425,7 +437,7 @@ class MainMenu(ctk.CTkFrame):
         self.open_existing_button = ctk.CTkButton(self, text="Manage an Existing Budget", fg_color="#00aaff", font=('calibri', 40), command = lambda: app_logic.system_selection(manage_budget_system))
         self.options_button = ctk.CTkButton(self, text="Options", fg_color="#00aaff", font=('calibri', 40))
 
-        self.version_note = ctk.CTkLabel(self, text="Version 0.3.1", text_color="#686868")
+        self.version_note = ctk.CTkLabel(self, text="Version 0.3.2", text_color="#686868")
 
         #layout
         self.main_menu_label.grid(row=0, column=1, columnspan=1, sticky='ew')
@@ -1215,7 +1227,8 @@ class TransactionEditorWindow(ctk.CTkToplevel):
         self.subcategory_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=[], variable=self.dropdown_subcat_name, state='readonly', command=lambda _value=None: self.set_dropdown_entities_on_subcat_select()) #this will set entity default
         self.entity_label = ctk.CTkLabel(self.transaction_form_frame, text="Entity", text_color="#00aaff", font=('calibri', 24))
         self.entity_dropdown = ctk.CTkComboBox(self.transaction_form_frame, width=250, values=[], variable=self.dropdown_entity_name, command=lambda _value=None: self.app_logic.set_entity_delete_btn_status())
-        self.entity_delete_button = ctk.CTkButton(self.transaction_form_frame, width=40, text="Delete Entity", fg_color="#00aaff", font=("Calibri", 15), command=lambda: self.app_logic.delete_currently_selected_entity_from_db())
+        self.entity_delete_button = ctk.CTkButton(self.transaction_form_frame, width=40, text="Delete Entity", fg_color="#00aaff", font=("Calibri", 15), command=lambda: self.draw_confirm_entity_delete_btn())
+        self.confirm_entity_delete_button = ctk.CTkButton(self.transaction_form_frame, width=40, text="Confirm?", fg_color="#00aaff", font=("Calibri", 15), command=lambda: self.app_logic.delete_currently_selected_entity_from_db())
         self.amount_label = ctk.CTkLabel(self.transaction_form_frame, text="Amount", text_color="#00aaff", font=('calibri', 24))
         self.amount_entry = ctk.CTkEntry(self.transaction_form_frame, width=250, textvariable=self.entrybox_amount)
         
@@ -1260,12 +1273,11 @@ class TransactionEditorWindow(ctk.CTkToplevel):
             self.subcategory_dropdown.configure(state="disabled")   
             #set default date, based on selected tab
             if self.app_logic.current_tab_num == 0: #annual transactions cannot currently have a date
-                self.date_selector.calendar_button.configure(state="disabled")  
-                self.date_selector.date_entry.configure(state="disabled")  
+                self.disable_calender()  
             if self.app_logic.current_tab_num == self.app_logic.month:
-                self.date_selector.set_month_and_day(self.app_logic.month, self.app_logic.day) #new transaction takes today as date      
+                self.set_calender_to_current_date()    
             elif self.app_logic.current_tab_num != self.app_logic.month:
-                self.date_selector.set_month_and_day(self.app_logic.current_tab_num, 1) #new transaction takes current tab, and 1 as date
+                self.set_calender_to_first(self.app_logic.current_tab_num)
         elif not self.add_new:
             self.entrybox_amount.set(app_logic.cell_transactions_from_db[app_logic.current_transaction_to_edit][-1])
             #set date based on selected tab and existing transaction data
@@ -1273,15 +1285,13 @@ class TransactionEditorWindow(ctk.CTkToplevel):
             selected_transaction_month = app_logic.cell_transactions_from_db[app_logic.current_transaction_to_edit][8] 
             if selected_transaction_month == 0: #annual transactions cannot currently have a date                
                 self.date_selector.set_month_and_day(selected_transaction_month, 0)    
-                self.date_selector.calendar_button.configure(state="disabled")  
-                self.date_selector.date_entry.configure(state="disabled")                 
-            elif selected_transaction_day == None and self.app_logic.current_tab_num == app_logic.month: #no date in transaction data but month=this month, select current tab and today as date
-                self.date_selector.set_month_and_day(self.app_logic.current_tab_num, self.app_logic.day)
-            elif selected_transaction_day == None and self.app_logic.current_tab_num != app_logic.month: #no date, month!=this month, selected current tab and 1 as date
-                self.date_selector.set_month_and_day(selected_transaction_month, 1)
+                self.disable_calender()               
+            elif selected_transaction_day == None and self.app_logic.current_tab_num == app_logic.month: #no date in transaction data but month=this month
+                self.set_calender_to_current_date()
+            elif selected_transaction_day == None and self.app_logic.current_tab_num != app_logic.month: #no date, month!=this month
+                self.set_calender_to_first(selected_transaction_month)                
             elif selected_transaction_day != None:
-                self.date_selector.set_month_and_day(selected_transaction_month, 
-                                                     selected_transaction_day) #use existing transaction date
+                self.date_selector.set_month_and_day(selected_transaction_month, selected_transaction_day) #use existing transaction date
         
         app_logic.give_logic_temp_window_acess(transaction_editor_window=self)
         app_logic.set_dropdown_categories(self.dropdown_incexp.get(), False, self.add_new)        
@@ -1305,6 +1315,20 @@ class TransactionEditorWindow(ctk.CTkToplevel):
 
     def set_dropdown_entities_on_subcat_select(self, _value: str | None = None):        
         self.app_logic.set_dropdown_entities(True) #Can be true each time b/c it will set to None or most recent entity
+
+    def draw_confirm_entity_delete_btn(self):
+        self.confirm_entity_delete_button.grid(row=14, column=2, sticky="new", pady=0, ipady=0, padx=5)
+        self.entity_delete_button.configure(state="disabled")
+
+    def disable_calender(self):
+        self.date_selector.calendar_button.configure(state="disabled")  
+        self.date_selector.date_entry.configure(state="disabled")
+
+    def set_calender_to_current_date(self):
+        self.date_selector.set_month_and_day(self.app_logic.month, self.app_logic.day)
+
+    def set_calender_to_first(self, month: int):
+        self.date_selector.set_month_and_day(month, 1)
 
 
 
