@@ -1415,7 +1415,7 @@ class AppLogic():
         if self.tab_title_list[0] == annual and self.current_tab_num != 0: #switching from monthly to annual, datepicker set to 0's
             set_dropdown_default = True
             month_selected = False
-            self.date_picker.set_month_and_day(0, 0)
+            self.date_picker.set_month_and_day(0, 0, self.month)
             self.visual_functions.configure_widget(self.date_picker.calendar_button, new_state="disabled")
         elif self.tab_title_list[0] != annual and self.current_tab_num == 0: #switching from annual to monthly
             set_dropdown_default = True
@@ -1428,10 +1428,10 @@ class AppLogic():
             self.visual_functions.configure_widget(self.date_picker.calendar_button, new_state="normal")
             for i, tab_name in enumerate(self.tab_title_list): 
                 if tab_name == annual and i == self.month: #selected dropdown matches selected tab AND month is this month
-                    self.date_picker.set_month_and_day(i, self.day) #use today                
+                    self.date_picker.set_month_and_day(i, self.day, self.month) #use today                
                     break
                 elif tab_name == annual and i != self.month: #selected tab matches but month is not this month
-                    self.date_picker.set_month_and_day(i, 1) #Do NOT use today                
+                    self.date_picker.set_month_and_day(i, 1, self.month) #Do NOT use today                
                     break
         self.set_dropdown_categories(self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_incexp), set_dropdown_default, add_new)
 
@@ -1693,7 +1693,7 @@ class AppLogic():
             self.manage_budget_conn.commit()
         
     def reload_entity_data_from_db(self):
-        '''This is called whenever a new entity is have been added to the db inside assemble_transaction_data_entry()
+        '''This is called whenever a new entity is added to the db inside assemble_transaction_data_entry()
         \nIf we decide that entity changes should happen when list window is confirmed, the call may be moved to modify_budget_database()'''
         self.manage_budget_cur.execute("select Entity.Description, Entity.id from Entity")
         self.entity_data = self.manage_budget_cur.fetchall()       
@@ -1731,7 +1731,7 @@ class AppLogic():
                     transaction_tab_num = i
         transaction_day: int = int(self.visual_functions.get_entrybox_content(self.transaction_editor_window.date_selector.date_entry).split("/")[0])
         entity_id: int | None = None
-        entity_name: str = self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_entity_name)
+        entity_name: str = self.visual_functions.extract_str_var(self.transaction_editor_window.dropdown_entity_name)        
         for entity in self.entity_data: #look for string that matches stringvar
             if entity[0] == entity_name:
                 entity_id = entity[1]
@@ -1740,9 +1740,9 @@ class AppLogic():
             self.manage_budget_cur.execute('''insert into Entity (Description) Values (?)''', (entity_name,))
             self.manage_budget_conn.commit()
             self.reload_entity_data_from_db()
-        #select and assign entity id
-        self.manage_budget_cur.execute('''select Entity.id from Entity where (Entity.Description) = (?)''', (entity_name,))
-        entity_id = self.manage_budget_cur.fetchall()[0][0]
+            #select and assign newly created entity id
+            self.manage_budget_cur.execute('''select Entity.id from Entity where (Entity.Description) = (?)''', (entity_name,))
+            entity_id = self.manage_budget_cur.fetchall()[0][0]
         return (transaction_id, transaction_incexp, cat_name, cat_id, subcat_name, subcat_id, acct_name, acct_id, transaction_tab_num, transaction_day, entity_name, entity_id, self.transaction_editor_amount)
 
     def edit_transaction_in_list(self): #confirm button in editor clicked (called for each selected transaction)

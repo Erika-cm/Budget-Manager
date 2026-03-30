@@ -1284,14 +1284,14 @@ class TransactionEditorWindow(ctk.CTkToplevel):
             selected_transaction_day = app_logic.cell_transactions_from_db[app_logic.current_transaction_to_edit][9]
             selected_transaction_month = app_logic.cell_transactions_from_db[app_logic.current_transaction_to_edit][8] 
             if selected_transaction_month == 0: #annual transactions cannot currently have a date                
-                self.date_selector.set_month_and_day(selected_transaction_month, 0)    
+                self.date_selector.set_month_and_day(selected_transaction_month, 0, self.app_logic.month)    
                 self.disable_calender()               
             elif selected_transaction_day == None and self.app_logic.current_tab_num == app_logic.month: #no date in transaction data but month=this month
                 self.set_calender_to_current_date()
             elif selected_transaction_day == None and self.app_logic.current_tab_num != app_logic.month: #no date, month!=this month
                 self.set_calender_to_first(selected_transaction_month)                
             elif selected_transaction_day != None:
-                self.date_selector.set_month_and_day(selected_transaction_month, selected_transaction_day) #use existing transaction date
+                self.date_selector.set_month_and_day(selected_transaction_month, selected_transaction_day, self.app_logic.month) #use existing transaction date
         
         app_logic.give_logic_temp_window_acess(transaction_editor_window=self)
         app_logic.set_dropdown_categories(self.dropdown_incexp.get(), False, self.add_new)        
@@ -1325,10 +1325,10 @@ class TransactionEditorWindow(ctk.CTkToplevel):
         self.date_selector.date_entry.configure(state="disabled")
 
     def set_calender_to_current_date(self):
-        self.date_selector.set_month_and_day(self.app_logic.month, self.app_logic.day)
+        self.date_selector.set_month_and_day(self.app_logic.month, self.app_logic.day, self.app_logic.month)
 
     def set_calender_to_first(self, month: int):
-        self.date_selector.set_month_and_day(month, 1)
+        self.date_selector.set_month_and_day(month, 1, self.app_logic.month)
 
 
 

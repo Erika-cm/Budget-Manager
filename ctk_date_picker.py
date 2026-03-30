@@ -40,7 +40,11 @@ class CTkDatePicker(ctk.CTkFrame):
         
         self.app_logic.give_logic_temp_window_acess(date_picker=self)
     
-    def set_month_and_day(self, new_month: int, new_day: int):
+    def set_month_and_day(self, new_month: int, new_day: int, current_month: int):
+        '''called from Logic, passes new_month based on selected tab, 
+        \nnew day based on either today if month is current month,
+        \ncurrent_month is passed so that mis-match btw actual month and selected month can be detected'''
+        self.current_month = current_month
         self.month: int = new_month #this by default is based on selected tab
         self.day:int = new_day #defaults to today's date        
         self.day_str = str(self.day)
@@ -165,6 +169,12 @@ class CTkDatePicker(ctk.CTkFrame):
                         btn = ctk.CTkButton(self.calendar_frame, text=str(days_of_month), width=3, command=lambda day=days_of_month: self.select_date(day), fg_color="transparent", text_color="black", hover_color="#3b8ed0")
                     else:
                         btn = ctk.CTkButton(self.calendar_frame, text=str(days_of_month), width=3, command=lambda day=days_of_month: self.select_date(day), fg_color="transparent")
+                    try:
+                        selected_day = int(self.get_date().split("/")[0])
+                        if days_of_month == selected_day: #if current month=selected tab then highlight today's date 3 text
+                            btn.configure(text_color="#00aaff")
+                    except ValueError as e:
+                        print(f"Error: {e}")                                            
                     btn.grid(row=week, column=day_col)
                     days_of_month += 1
 
